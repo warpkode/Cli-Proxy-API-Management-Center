@@ -8,6 +8,7 @@
 @use './themes.scss';
 @use './components.scss';
 @use './layout.scss';
+@use './fork-theme.scss';
 
 body {
   background-color: var(--bg-secondary);

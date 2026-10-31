@@ -1,0 +1,50 @@
+/**
+ * Fork design language (warpkode): near-black canvas, flat borderless cards,
+ * segmented controls, white primary actions. Loaded after themes.scss so it
+ * only overrides tokens; upstream files keep their own values for easy merges.
+ */
+
+:root,
+[data-theme='white'] {
+  --surface-well: #f2f2f1;
+  --surface-selected: #e4e4e3;
+  --brand-claude: #c8603f;
+  --brand-codex: #3f6fd9;
+  --accent-amber: #b7791f;
+  --accent-red: #d0453a;
+  --radius-card: 18px;
+  --radius-control: 11px;
+}
+
+[data-theme='dark'] {
+  --bg-secondary: #0b0b0b;
+  --bg-primary: #141414;
+  --bg-tertiary: #1a1a1a;
+  --bg-hover: #222222;
+  --bg-quinary: #101010;
+  --floating-surface: #1c1c1c;
+  --floating-shadow: 0 16px 36px rgba(0, 0, 0, 0.55);
+
+  --text-primary: #f5f5f4;
+  --text-secondary: #a3a3a3;
+  --text-tertiary: #6b6b6b;
+  --text-quaternary: #4a4a4a;
+
+  --border-color: #1f1f1f;
+  --border-primary: #2a2a2a;
+  --border-hover: #343434;
+
+  --primary-color: #f4f4f3;
+  --primary-hover: #ffffff;
+  --primary-active: #e2e2e1;
+  --primary-contrast: #0b0b0b;
+
+  --surface-well: #181818;
+  --surface-selected: #262626;
+  --brand-claude: #e8846b;
+  --brand-codex: #7fa6f6;
+  --accent-amber: #f0b44c;
+  --accent-red: #ef6a5f;
+  --radius-card: 18px;
+  --radius-control: 11px;
+}
