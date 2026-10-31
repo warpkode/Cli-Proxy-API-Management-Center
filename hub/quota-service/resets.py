@@ -119,6 +119,9 @@ DETAILS = {
     "not_usable": "grant not usable now",
     "exhausted": "no resets left",
     "unknown_grant": "grant no longer offered",
+    "account_busy": "another spend on this account is still settling; nothing sent",
+    "off_credit": "another credit on this account is set to off and upstream picks the credit; "
+                  "nothing sent",
     "not_started": "grant not started",
     "grant_expired": "grant expired",
     "not_pending": "grant already settled",
@@ -746,6 +749,23 @@ class Service:
         j = self.state["journal"].get(key)
         return j if j and j.get("outcome") is None and now - j["created"] < RETRY_WINDOW else None
 
+    def _account_settling(self, idx, key, now):
+        """Another spend on this account may still land, so no new request id may go out.
+
+        Holds while any other spend's outcome is unknown, and for RETRY_WINDOW after a
+        spend that succeeded or may have: reads can lag the spend, so a fresh one
+        could still show the old grant or credit and invite a second spend.
+        """
+        for other, j in self.state["journal"].items():
+            if other != key and j.get("account") == idx and self._unresolved(other, now):
+                return True
+        last = (self.state["accounts"].get(idx) or {}).get("last_spend") or 0
+        return now - last < RETRY_WINDOW
+
+    def _note_spend(self, idx):
+        """Caller holds the lock. Invalidates the limit observation the spend used."""
+        self.state["accounts"].setdefault(idx, {})["last_spend"] = self.now()
+
     def next_action(self, key, now):
         g = self.state["grants"][key]
         if g["final"]:
@@ -871,6 +891,8 @@ class Service:
         if g["final"]:
             return "not_pending"
         idx = g["account"]
+        if not self._unresolved(key, now) and self._account_settling(idx, key, now):
+            return "account_busy"      # skipped silently; the tick retries later
         if not self._preflight_allowed(idx, now) and not self._unresolved(key, now):
             return "rate_limited"      # skipped silently; the tick retries later
         if g["p"] == "claude":
@@ -961,16 +983,19 @@ class Service:
         with self.lock:
             if code != "unknown" and (not retry or code in SPENT_CODES):
                 j["outcome"] = code
+            # The outcome and its local accounting reach disk together, before anything
+            # else can fail, so a restart never sees a settled spend on an unchanged grant.
+            if code in SPENT_CODES:
+                g["left"] = max(0, (g.get("left") or 1) - 1)
+                if g["left"] == 0:
+                    g["final"], g["final_at"] = "spent", self.now()
+                self.state["accounts"].setdefault(idx, {})["next_check"] = self.now() + 60
+            if code in SPENT_CODES or code == "unknown":
+                self._note_spend(idx)
         self.save()
         detail = None
         if code in SPENT_CODES:
             cleared = self._clear_cooldown(idx)
-            with self.lock:
-                g["left"] = max(0, (g.get("left") or 1) - 1)
-                if g["left"] == 0:
-                    g["final"], g["final_at"] = "spent", self.now()
-                self.state["accounts"][idx]["next_check"] = self.now() + 60
-                self.state["accounts"][idx]["last_spend"] = self.now()
             detail = DETAILS[code] + ("; hub cooldown cleared" if cleared
                                       else "; hub cooldown clear failed")
         return self._record(key, trigger, code, detail)
@@ -1015,6 +1040,9 @@ class Service:
                                     else "grant_expired")
             before = {k for k, x in self.state["grants"].items()
                       if x["account"] == idx and not x["final"]}
+            # Consume cannot name a credit, so upstream may use any listed one.
+            if any(self.policy(k) == "off" for k in before if k != key):
+                return self._record(key, trigger, "off_credit")
             j = self._journal(key, g, trigger, now)
         if self.now() - j["created"] >= RETRY_WINDOW:
             return self._record(key, trigger, "unknown")
@@ -1040,11 +1068,11 @@ class Service:
         with self.lock:
             if code != "unknown" and (not retry or code in SPENT_CODES):
                 j["outcome"] = code
+            if code in SPENT_CODES or code == "unknown":
+                self._note_spend(idx)
         self.save()
         if code not in SPENT_CODES:
             return self._record(key, trigger, code)
-        with self.lock:
-            self.state["accounts"][idx]["last_spend"] = self.now()
         cleared = self._clear_cooldown(idx)
         suffix = "; hub cooldown cleared" if cleared else "; hub cooldown clear failed"
         try:

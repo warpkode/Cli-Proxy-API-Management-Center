@@ -1813,6 +1813,8 @@
     "resets_result_not_found": "сброс не найден",
     "resets_result_unauthorized": "ключ управления отклонён",
     "resets_result_bad_policy": "неизвестный режим",
+    "resets_result_account_busy": "другой сброс этого аккаунта ещё обрабатывается",
+    "resets_result_off_credit": "другой кредит этого аккаунта выключен, а Codex сам выбирает, какой использовать",
     "pool_row_grants_one": "{{count}} сброс",
     "pool_row_grants_few": "{{count}} сброса",
     "pool_row_grants_many": "{{count}} сбросов",

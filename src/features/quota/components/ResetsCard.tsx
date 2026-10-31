@@ -86,7 +86,7 @@ export function ResetsCard(props: ResetsCardProps) {
   const pending = resets.grants
     .filter(
       (grant) =>
-        grant.state === 'pending' &&
+        (grant.state === 'pending' || grant.state === 'off') &&
         grant.left > 0 &&
         (grant.expiresAtMs === null || grant.expiresAtMs > nowMs)
     )
@@ -364,11 +364,9 @@ export function ResetsCard(props: ResetsCardProps) {
                 <span aria-hidden="true">{providerIcon(grant.provider)}</span>
                 <span className={name.masked ? styles.masked : styles.name}>{name.text}</span>
                 <span>
-                  {grant.state === 'off'
-                    ? t('quota_management.resets_policy_off')
-                    : at !== null
-                      ? t(`quota_management.resets_state_${stateKey}`, { time: when(at) })
-                      : ''}
+                  {at !== null
+                    ? t(`quota_management.resets_state_${stateKey}`, { time: when(at) })
+                    : ''}
                   {grant.last && ` · ${resultLabel(grant.last.result)}`}
                 </span>
               </li>

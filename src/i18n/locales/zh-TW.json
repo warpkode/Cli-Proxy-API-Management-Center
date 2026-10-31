@@ -1830,6 +1830,8 @@
     "resets_result_not_found": "找不到該重設",
     "resets_result_unauthorized": "管理金鑰被拒絕",
     "resets_result_bad_policy": "未知策略",
+    "resets_result_account_busy": "該帳號的另一次重設仍在處理中",
+    "resets_result_off_credit": "該帳號的另一個額度已關閉，而 Codex 會自行選擇使用哪個額度",
     "pool_row_grants": "{{count}} 次重設",
     "resets_left": "剩 {{count}} 次"
   },

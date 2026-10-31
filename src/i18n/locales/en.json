@@ -1806,6 +1806,8 @@
     "resets_result_not_found": "reset not found",
     "resets_result_unauthorized": "management key rejected",
     "resets_result_bad_policy": "unknown policy",
+    "resets_result_account_busy": "another reset on this account is settling",
+    "resets_result_off_credit": "another credit on this account is off, and Codex picks which credit to use",
     "pool_row_grants_one": "{{count}} reset",
     "pool_row_grants_other": "{{count}} resets",
     "resets_left_one": "{{count}} left",

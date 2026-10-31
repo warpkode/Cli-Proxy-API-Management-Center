@@ -505,6 +505,66 @@ class CodexTests(Base):
         self.run_until(self.clock.t + 30)
         self.assertEqual(len(self.hub.consumes()), 2)
 
+    def test_off_credit_blocks_consume(self):
+        # Consume cannot name a credit, so an "off" credit on the account blocks it.
+        self.hub.credits[CODEX] = [{"id": "kept", "expires": T0 + 86400},
+                                   {"id": "soon", "expires": T0 + 3600}]
+        self.run_until(T0 + 60)
+        self.svc.set_policy(f"{CODEX}/kept", "off")
+        self.run_until(T0 + 3600 - 300)
+        self.assertEqual(self.hub.consumes(), [])
+        self.assertEqual(self.svc.state["grants"][f"{CODEX}/soon"]["last"]["result"],
+                         "off_credit")
+        self.assertEqual(self.svc.manual_spend(f"{CODEX}/soon"), "off_credit")
+        self.assertEqual(self.hub.consumes(), [])
+
+    def test_unknown_consume_holds_the_account(self):
+        # The consume lands upstream but the reply is lost; the other credit must not
+        # get its own request id against the same limit observation.
+        self.hub.credits[CODEX] = [{"id": "c1", "expires": T0 + 86400},
+                                   {"id": "c2", "expires": T0 + 86400}]
+        self.run_until(T0 + 60)
+        self.svc.set_default_policy("limit")
+        real = self.hub.api_call
+
+        def lossy(idx, method, url, header, data=None, timeout=20):
+            if url == resets.CODEX_CONSUME_URL:
+                self.hub.calls.append(("API", idx, method, url, dict(header), data))
+                if self.hub.credits[idx]:
+                    self.hub.credits[idx].pop(0)
+                raise resets.HubError("hub_timeout", True)
+            return real(idx, method, url, header, data, timeout)
+
+        self.hub.api_call = lossy
+        self.hub.codex_used = 100
+        self.hub.observed = self.clock.t + 1
+        self.run_until(self.clock.t + 900)
+        ids = {json.loads(c[5])["redeem_request_id"] for c in self.hub.consumes()}
+        self.assertEqual(ids, {"req-0000"})
+        self.assertEqual(self.gstate("c2", CODEX), "pending")
+
+    def test_spend_accounting_reaches_disk_before_cooldown_clear(self):
+        expires = T0 + 7200
+        self.hub.cedar[CLAUDE].update(at_limit=True, grants=[grant(expires=expires)])
+        self.svc.tick()
+
+        def crash(path, body):
+            raise RuntimeError("process killed")
+
+        self.hub.post = crash
+        with self.assertRaises(RuntimeError):
+            self.svc.manual_spend(f"{CLAUDE}/spring_2026")
+        with open(os.path.join(self.dir, "state.json")) as fh:
+            saved = json.load(fh)
+        g = saved["grants"][f"{CLAUDE}/spring_2026"]
+        self.assertEqual((g["left"], g["final"]), (0, "spent"))
+        self.assertEqual(saved["accounts"][CLAUDE]["last_spend"], self.clock.t)
+        # Restart against a lagging read that still lists the reset: no second claim.
+        del self.hub.post
+        self.svc = self.make()
+        self.run_until(expires)
+        self.assertEqual(len(self.hub.claims()), 1)
+
 
 class FileTests(Base):
     def test_public_json_shape_and_no_secrets(self):

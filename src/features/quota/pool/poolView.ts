@@ -85,7 +85,7 @@ export interface PoolViewInput {
 
 const DEFAULT_GRANT_LEAD_MS = 10 * 60 * 1000;
 
-/** Grants the scheduler may still spend: pending, with resets left, not yet expired. */
+/** Grants still available: pending or switched off, with resets left, not yet expired. */
 export function pendingGrants(
   grants: readonly ResetGrant[],
   accountIds: ReadonlySet<string>,
@@ -95,7 +95,7 @@ export function pendingGrants(
     .filter(
       (grant) =>
         accountIds.has(grant.accountId) &&
-        grant.state === 'pending' &&
+        (grant.state === 'pending' || grant.state === 'off') &&
         grant.left > 0 &&
         (grant.expiresAtMs === null || grant.expiresAtMs > nowMs)
     )
@@ -134,7 +134,13 @@ export function buildPoolView(input: PoolViewInput): PoolView {
 
   const pending = pendingGrants(input.grants ?? [], ids, nowMs);
   const leadMs = input.grantLeadMs ?? DEFAULT_GRANT_LEAD_MS;
-  const simGrants: SimulationGrant[] = pending.map((grant) => ({
+  // The pool tracks weekly quota: a Claude grant that only clears the 5-hour window
+  // restores none of it. Codex credits reset every window.
+  const weekly = pending.filter(
+    (grant) =>
+      grant.provider === 'codex' || grant.clears.some((window) => window.startsWith('seven_day'))
+  );
+  const simGrants: SimulationGrant[] = weekly.map((grant) => ({
     id: grantKey(grant),
     accountId: grant.accountId,
     expiresAtMs: grant.expiresAtMs,

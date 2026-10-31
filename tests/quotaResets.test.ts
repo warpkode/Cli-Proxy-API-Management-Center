@@ -299,6 +299,54 @@ describe('grants in the pool projection and on the page', () => {
     expect(plain).toContain('Activity');
   });
 
+  test('a 5-hour-only grant restores no weekly capacity in the projection', () => {
+    const fiveHourOnly = {
+      ...resets.grants[0],
+      id: 'grant_5h',
+      clears: ['five_hour'],
+    };
+    const fiveHourView = buildPoolView({
+      accounts: claude,
+      history,
+      nowMs: NOW,
+      range: poolRange(NOW),
+      burnWindowHours: 3,
+      futureUsage: 'same',
+      grants: [fiveHourOnly],
+      grantLeadMs: resets.leadMs,
+    });
+    expect(fiveHourView.grants.pending.map((grant) => grant.id)).toEqual(['grant_5h']);
+    expect(fiveHourView.grants.outcomes['c3:grant_5h']).toBeUndefined();
+    expect(fiveHourView.remaining.projectedStepUps.some((event) => event.kind === 'grant')).toBe(
+      false
+    );
+  });
+
+  test('a grant switched off stays editable so it can be switched back on', () => {
+    const switchedOff: QuotaResetsState = {
+      ...resets,
+      grants: resets.grants.map((grant) =>
+        grant.id === 'grant_c3' ? { ...grant, policy: 'off', policySet: true, state: 'off' } : grant
+      ),
+    };
+    const markup = renderToStaticMarkup(
+      createElement(ResetsCard, {
+        resets: switchedOff,
+        accounts,
+        outcomes: {},
+        nowMs: NOW,
+        showEmails: true,
+        resolvedTheme: 'dark',
+        canAct: true,
+        onState: () => undefined,
+      })
+    );
+    const plain = text(markup);
+    expect(markup.match(/>Use now</g)).toHaveLength(3);
+    expect(markup).toMatch(/aria-pressed="true"[^>]*>Off</);
+    expect(plain).toContain('Automatic spending is off for this reset');
+  });
+
   test('hidden emails stay masked in the Resets card', () => {
     const markup = renderToStaticMarkup(
       createElement(ResetsCard, {

@@ -497,9 +497,10 @@ export function simulatePool(
     if (toMs <= fromMs || ratePerMs <= 0) return;
     let demand = ratePerMs * (toMs - fromMs);
     let spent = 0;
-    const order = state.filter((entry) => entry.remaining > EPSILON).sort(bySoonestReset);
-    for (const entry of order) {
-      if (demand <= EPSILON) break;
+    // Re-pick after each account runs dry: a grant may have just restored it.
+    while (demand > EPSILON) {
+      const entry = state.filter((item) => item.remaining > EPSILON).sort(bySoonestReset)[0];
+      if (!entry) break;
       const take = Math.min(entry.remaining, demand);
       entry.remaining -= take;
       demand -= take;

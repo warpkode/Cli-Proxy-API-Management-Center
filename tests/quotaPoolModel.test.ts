@@ -487,6 +487,21 @@ describe('reset grants in the projection', () => {
     expect(off.stepUps.filter((event) => event.kind === 'grant')).toHaveLength(0);
   });
 
+  test('an account restored mid-step keeps draining in that step', () => {
+    const result = simulatePool(
+      [{ id: 'a', used: 90, resetAtMs: NOW + 4 * DAY, periodMs: WEEK_MS }],
+      {
+        startMs: NOW,
+        endMs: NOW + 15 * 60_000,
+        burnPerHour: 100,
+        grants: [grant({ policy: 'limit', expiresAtMs: NOW + DAY })],
+      }
+    );
+    // 10% lasts 6 minutes; the grant refills it and the last 9 minutes drain 15%.
+    expect(result.grantOutcomes.g).toEqual({ kind: 'spent', atMs: NOW + 6 * 60_000, amount: 100 });
+    expect(result.pool[result.pool.length - 1]).toEqual({ t: NOW + 15 * 60_000, value: 85 });
+  });
+
   test('a limit grant on an account that is already dry is spent at once', () => {
     const result = run([grant({ policy: 'limit' })]);
     expect(result.grantOutcomes.g).toEqual({ kind: 'spent', atMs: NOW, amount: 100 });

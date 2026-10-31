@@ -1806,6 +1806,8 @@
     "resets_result_not_found": "sıfırlama bulunamadı",
     "resets_result_unauthorized": "yönetim anahtarı reddedildi",
     "resets_result_bad_policy": "bilinmeyen kural",
+    "resets_result_account_busy": "bu hesaptaki başka bir sıfırlama sürüyor",
+    "resets_result_off_credit": "bu hesaptaki başka bir kredi kapalı ve hangi krediyi kullanacağını Codex seçer",
     "pool_row_grants_one": "{{count}} sıfırlama",
     "pool_row_grants_other": "{{count}} sıfırlama",
     "resets_left_one": "{{count}} kaldı",
