@@ -23,6 +23,7 @@ import { getAuthFileIcon, getTypeLabel } from '@/features/authFiles/constants';
 import { accountLabel, accountShortLabel, type PoolAccount } from '../pool/accounts';
 import { durationParts, formatInstant, formatPercent } from '../pool/format';
 import type { GrantOutcome } from '../pool/poolModel';
+import { offCreditBlockUntil } from '../pool/poolView';
 import styles from './ResetsCard.module.scss';
 
 /** The scheduler file is rewritten at least this often while it runs. */
@@ -113,6 +114,9 @@ export function ResetsCard(props: ResetsCardProps) {
     const outcome = outcomes[grantKey(grant)];
     const name = shortNameOf(grant.accountId);
     if (grant.policy === 'off') return t('quota_management.resets_plan_off');
+    if (outcome?.kind !== 'spent' && offCreditBlockUntil(grant, pending) !== null) {
+      return t('quota_management.resets_plan_off_credit');
+    }
     if (!outcome) return '';
     if (outcome.kind === 'spent') {
       const amount = `${formatPercent(outcome.amount)}`;

@@ -1808,6 +1808,7 @@
     "resets_result_bad_policy": "알 수 없는 정책",
     "resets_result_account_busy": "이 계정의 다른 초기화가 처리 중",
     "resets_result_off_credit": "이 계정의 다른 크레딧이 꺼져 있고 Codex가 사용할 크레딧을 직접 고릅니다",
+    "resets_plan_off_credit": "이 계정의 다른 크레딧이 꺼져 있는 동안에는 사용되지 않습니다. 어떤 크레딧을 쓸지는 Codex가 고릅니다",
     "pool_row_grants_one": "초기화 {{count}}회",
     "pool_row_grants_other": "초기화 {{count}}회",
     "resets_left_one": "{{count}}회 남음",

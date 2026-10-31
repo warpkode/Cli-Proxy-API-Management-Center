@@ -1764,6 +1764,7 @@
     "resets_result_bad_policy": "chính sách không hợp lệ",
     "resets_result_account_busy": "một lượt đặt lại khác của tài khoản đang xử lý",
     "resets_result_off_credit": "một lượt khác của tài khoản đang tắt và Codex tự chọn lượt sẽ dùng",
+    "resets_plan_off_credit": "Sẽ không dùng khi một lượt khác của tài khoản đang tắt, vì Codex tự chọn lượt sẽ dùng",
     "pool_row_grants_one": "{{count}} lượt đặt lại",
     "pool_row_grants_other": "{{count}} lượt đặt lại",
     "resets_left_one": "còn {{count}}",

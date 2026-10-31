@@ -1804,6 +1804,7 @@
     "resets_result_bad_policy": "未知策略",
     "resets_result_account_busy": "该账号的另一次重置仍在处理中",
     "resets_result_off_credit": "该账号的另一个额度已关闭，而 Codex 会自行选择使用哪个额度",
+    "resets_plan_off_credit": "该账号另一个额度设为关闭时不会使用：Codex 会自行选择使用哪个额度",
     "pool_row_grants": "{{count}} 次重置",
     "resets_left": "剩 {{count}} 次"
   },

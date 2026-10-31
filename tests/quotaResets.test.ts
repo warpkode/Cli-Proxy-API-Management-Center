@@ -322,6 +322,46 @@ describe('grants in the pool projection and on the page', () => {
     );
   });
 
+  test('an off Codex credit blocks the other credits on that account until it expires', () => {
+    const codexAccounts = accounts.filter((account) => account.provider === 'codex');
+    const credit = resets.grants.find((grant) => grant.id === 'credit_x1');
+    if (!credit) throw new Error('fixture');
+    const soon = { ...credit, id: 'soon', policy: 'expiry' as const, expiresAtMs: NOW + HOUR };
+    const offUntil = (expiresAtMs: number) => {
+      const off = { ...credit, id: 'kept', policy: 'off' as const, policySet: true, expiresAtMs };
+      return buildPoolView({
+        accounts: codexAccounts,
+        history,
+        nowMs: NOW,
+        range: poolRange(NOW),
+        burnWindowHours: 3,
+        futureUsage: 'same',
+        grants: [soon, off],
+        grantLeadMs: resets.leadMs,
+      }).grants.outcomes['x1:soon'];
+    };
+    // The off credit outlives "soon": the scheduler refuses, so nothing is projected.
+    expect(offUntil(NOW + DAY)).toMatchObject({ kind: 'unused', reason: 'expired' });
+    // Once the off credit is gone, "soon" is consumed as usual.
+    expect(offUntil(NOW + 20 * 60_000)).toMatchObject({ kind: 'spent' });
+    const markup = renderToStaticMarkup(
+      createElement(ResetsCard, {
+        resets: {
+          ...resets,
+          grants: [soon, { ...credit, id: 'kept', policy: 'off', expiresAtMs: NOW + DAY }],
+        },
+        accounts,
+        outcomes: { 'x1:soon': { kind: 'unused', atMs: NOW + HOUR, reason: 'expired' } },
+        nowMs: NOW,
+        showEmails: true,
+        resolvedTheme: 'dark',
+        canAct: true,
+        onState: () => undefined,
+      })
+    );
+    expect(text(markup)).toContain('another credit on this account is set to Off');
+  });
+
   test('a grant switched off stays editable so it can be switched back on', () => {
     const switchedOff: QuotaResetsState = {
       ...resets,

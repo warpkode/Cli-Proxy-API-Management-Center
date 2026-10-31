@@ -85,6 +85,25 @@ export interface PoolViewInput {
 
 const DEFAULT_GRANT_LEAD_MS = 10 * 60 * 1000;
 
+/**
+ * Until when the scheduler refuses to consume this Codex credit: a consume cannot
+ * name its credit, so any other live credit on the account set to off blocks it
+ * until that one expires (forever without an expiry). Null when nothing blocks.
+ */
+export function offCreditBlockUntil(
+  grant: ResetGrant,
+  pending: readonly ResetGrant[]
+): number | null {
+  if (grant.provider !== 'codex') return null;
+  return pending.reduce<number | null>((until, other) => {
+    if (other === grant || other.accountId !== grant.accountId || other.policy !== 'off') {
+      return until;
+    }
+    const end = other.expiresAtMs ?? Number.POSITIVE_INFINITY;
+    return until === null ? end : Math.max(until, end);
+  }, null);
+}
+
 /** Grants still available: pending or switched off, with resets left, not yet expired. */
 export function pendingGrants(
   grants: readonly ResetGrant[],
@@ -144,7 +163,10 @@ export function buildPoolView(input: PoolViewInput): PoolView {
     id: grantKey(grant),
     accountId: grant.accountId,
     expiresAtMs: grant.expiresAtMs,
-    startsAtMs: grant.startsAtMs,
+    startsAtMs: Math.max(
+      grant.startsAtMs ?? Number.NEGATIVE_INFINITY,
+      offCreditBlockUntil(grant, pending) ?? Number.NEGATIVE_INFINITY
+    ),
     policy: grant.policy,
     leadMs,
     requiresLimit: grant.requiresLimit,
