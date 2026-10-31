@@ -39,6 +39,18 @@ export interface AuthFileCooldownSnapshot {
   records: AuthFileCooldown[] | null;
 }
 
+/**
+ * Upstream rate-limit headers the hub cached from a credential's most recent
+ * response (Anthropic unified rate-limit headers, Codex usage headers, ...).
+ * Header names are kept verbatim. Reading them costs no upstream request, but an
+ * idle credential's snapshot can be hours old: check `observedAt`.
+ */
+export interface AuthFileQuotaSignals {
+  /** When the hub observed these headers (ISO); absent when the server omits it. */
+  observedAt?: string;
+  signals: Record<string, string>;
+}
+
 export interface AuthFileItem {
   name: string;
   siwcBindSupported?: boolean;
@@ -81,6 +93,10 @@ export interface AuthFileItem {
   recentRequests?: RecentRequestBucket[];
   /** Absent on older servers. Never interpreted as credential health. */
   cooldownSnapshot?: AuthFileCooldownSnapshot;
+  /** Hub-cached upstream quota headers; absent on servers without quota signals. */
+  quotaSignals?: AuthFileQuotaSignals;
+  /** Display label supplied by the credential registry. */
+  label?: string;
   [key: string]: unknown;
 }
 

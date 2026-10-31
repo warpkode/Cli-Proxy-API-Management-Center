@@ -13,7 +13,7 @@ import {
   REQUEST_TIMEOUT_MS,
   VERSION_HEADER_KEYS,
 } from '@/utils/constants';
-import { computeApiUrl } from '@/utils/connection';
+import { computeApiUrl, normalizeApiBase } from '@/utils/connection';
 import { parseApiErrorResponse } from './apiError';
 
 class ApiClient {
@@ -49,6 +49,16 @@ class ApiClient {
     } else {
       this.instance.defaults.timeout = REQUEST_TIMEOUT_MS;
     }
+  }
+
+  /**
+   * Absolute URL for a backend-declared route outside the management prefix.
+   * Plugin routes keep their declared paths (e.g. `/v0/management/plugins/<id>/...`);
+   * requests to them still go through this client for bearer auth and error handling.
+   */
+  resolveServerUrl(path: string): string {
+    const base = normalizeApiBase(this.apiBase);
+    return base ? `${base}${path}` : path;
   }
 
   /** Guards read/modify/write operations across connection changes, including ABA switches. */
