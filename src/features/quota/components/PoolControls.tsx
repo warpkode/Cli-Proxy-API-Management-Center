@@ -79,35 +79,39 @@ export function PoolControls(props: PoolControlsProps) {
           ))}
         </div>
 
-        <span id={burnLabelId} className={styles.label}>
-          {t('quota_management.pool_burn_window_label')}
+        <span className={styles.pair}>
+          <span id={burnLabelId} className={styles.label}>
+            {t('quota_management.pool_burn_window_label')}
+          </span>
+          <span className={styles.segmented} role="group" aria-labelledby={burnLabelId}>
+            {BURN_WINDOWS_HOURS.map((hours) => (
+              <button
+                key={hours}
+                type="button"
+                aria-pressed={burnWindow === hours}
+                onClick={() => onBurnWindowChange(hours)}
+              >
+                {t('quota_management.pool_burn_window_option', { hours })}
+              </button>
+            ))}
+          </span>
         </span>
-        <div className={styles.segmented} role="group" aria-labelledby={burnLabelId}>
-          {BURN_WINDOWS_HOURS.map((hours) => (
-            <button
-              key={hours}
-              type="button"
-              aria-pressed={burnWindow === hours}
-              onClick={() => onBurnWindowChange(hours)}
-            >
-              {t('quota_management.pool_burn_window_option', { hours })}
-            </button>
-          ))}
-        </div>
 
-        <span id={futureLabelId} className={styles.label}>
-          {t('quota_management.pool_future_label')}
+        <span className={styles.pair}>
+          <span id={futureLabelId} className={styles.label}>
+            {t('quota_management.pool_future_label')}
+          </span>
+          <span className={styles.select}>
+            <Select
+              value={futureUsage}
+              options={futureOptions}
+              onChange={(value) => onFutureUsageChange(value as FutureUsageMode)}
+              ariaLabelledBy={futureLabelId}
+              size="sm"
+              fullWidth={false}
+            />
+          </span>
         </span>
-        <div className={styles.select}>
-          <Select
-            value={futureUsage}
-            options={futureOptions}
-            onChange={(value) => onFutureUsageChange(value as FutureUsageMode)}
-            ariaLabelledBy={futureLabelId}
-            size="sm"
-            fullWidth={false}
-          />
-        </div>
 
         <button
           type="button"

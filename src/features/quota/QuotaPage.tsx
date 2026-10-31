@@ -9,6 +9,8 @@
  * - Per-account upstream reads (`requests/api-call`) happen only from explicit
  *   clicks inside "Live account checks". Nothing queries providers on mount or
  *   on a timer.
+ * - Reset grants come from the hub's reset scheduler (`resets.json`); the
+ *   Resets card sends it commands, and the scheduler does any spending.
  *
  * Retained contracts: cacheGeneration session isolation, pruning quota caches
  * to surviving credentials, and this page as the sole header-refresh handler.
@@ -28,11 +30,18 @@ import { QuotaHeader } from './components/QuotaHeader';
 import { QuotaAccountChecks } from './components/QuotaAccountChecks';
 import { PoolCard } from './components/PoolCard';
 import { PoolControls } from './components/PoolControls';
+import { ResetsCard } from './components/ResetsCard';
 import { QUOTA_TAB_ORDER, type QuotaTabId } from './constants';
 import { buildTabCounts, classifyQuotaFiles, filterEntriesByTab } from './logic';
 import { buildPoolAccounts, hasQuotaData, type PoolAccount } from './pool/accounts';
 import { formatShortDate } from './pool/format';
-import { poolRange, type BurnWindowHours, type FutureUsageMode } from './pool/poolModel';
+import {
+  poolRange,
+  type BurnWindowHours,
+  type FutureUsageMode,
+  type GrantOutcome,
+} from './pool/poolModel';
+import { buildPoolView } from './pool/poolView';
 import { POOL_PROVIDERS, isPoolProvider, type PoolProvider } from './pool/types';
 import { usePoolSources, type OptionalSourceState } from './pool/usePoolSources';
 import { QUOTA_ADAPTERS, getQuotaSetter } from './providers';
@@ -66,7 +75,7 @@ export function QuotaPage() {
   const [metric, setMetric] = useState<PoolMetric>(stored?.metric ?? 'remaining');
   const [burnWindow, setBurnWindow] = useState<BurnWindowHours>(stored?.burnWindow ?? 3);
   const [futureUsage, setFutureUsage] = useState<FutureUsageMode>(stored?.futureUsage ?? 'same');
-  const [showAccounts, setShowAccounts] = useState(stored?.showAccounts ?? false);
+  const [showAccounts, setShowAccounts] = useState(stored?.showAccounts ?? true);
   const [showEmails, setShowEmails] = useState(readShowEmails);
   const [rangeOffset, setRangeOffset] = useState(0);
 
@@ -117,12 +126,58 @@ export function QuotaPage() {
     (account) => account.status.kind === 'unavailable'
   ).length;
 
-  const shownPools = POOL_PROVIDERS.filter(
-    (provider) =>
-      (activeTab === 'all' || activeTab === provider) &&
-      (accountsByProvider.get(provider)?.length ?? 0) > 0
+  const shownPools = useMemo(
+    () =>
+      POOL_PROVIDERS.filter(
+        (provider) =>
+          (activeTab === 'all' || activeTab === provider) &&
+          (accountsByProvider.get(provider)?.length ?? 0) > 0
+      ),
+    [activeTab, accountsByProvider]
   );
   const range = useMemo(() => poolRange(nowMs, rangeOffset), [nowMs, rangeOffset]);
+
+  // Reset grants on the shown pools, and how each pool's projection spends them.
+  const resets = sources.resets;
+  const shownResets = useMemo(
+    () =>
+      resets
+        ? {
+            ...resets,
+            grants: resets.grants.filter(
+              (grant) => isPoolProvider(grant.provider) && shownPools.includes(grant.provider)
+            ),
+          }
+        : null,
+    [resets, shownPools]
+  );
+  const grantOutcomes = useMemo(() => {
+    const outcomes: Record<string, GrantOutcome> = {};
+    if (!resets || resets.grants.length === 0) return outcomes;
+    for (const provider of shownPools) {
+      const view = buildPoolView({
+        accounts: accountsByProvider.get(provider) ?? [],
+        history: sources.history,
+        nowMs,
+        range,
+        burnWindowHours: burnWindow,
+        futureUsage,
+        grants: resets.grants,
+        grantLeadMs: resets.leadMs,
+      });
+      Object.assign(outcomes, view.grants.outcomes);
+    }
+    return outcomes;
+  }, [
+    resets,
+    shownPools,
+    accountsByProvider,
+    sources.history,
+    nowMs,
+    range,
+    burnWindow,
+    futureUsage,
+  ]);
   const rangeLabel = t('quota_management.pool_range', {
     start: formatShortDate(range.startMs, locale),
     end: formatShortDate(range.endMs - 1, locale),
@@ -183,6 +238,7 @@ export function QuotaPage() {
 
   const pacerState = supportsPlugin ? sourceStateKey(sources.seatPacerState) : null;
   const historyState = sourceStateKey(sources.historyState);
+  const resetsState = sourceStateKey(sources.resetsState);
 
   return (
     <div className={styles.page} ref={revealRef}>
@@ -237,6 +293,37 @@ export function QuotaPage() {
                   rangeOffset={rangeOffset}
                   onRangeOffsetChange={setRangeOffset}
                 />
+                <div className={styles.pools}>
+                  {shownPools.map((provider) => (
+                    <PoolCard
+                      key={provider}
+                      provider={provider}
+                      accounts={accountsByProvider.get(provider) ?? []}
+                      history={sources.history}
+                      resets={resets}
+                      nowMs={nowMs}
+                      range={range}
+                      metric={metric}
+                      burnWindow={burnWindow}
+                      futureUsage={futureUsage}
+                      showAccounts={showAccounts}
+                      showEmails={showEmails}
+                      resolvedTheme={resolvedTheme}
+                    />
+                  ))}
+                  {shownResets && (
+                    <ResetsCard
+                      resets={shownResets}
+                      accounts={poolAccounts}
+                      outcomes={grantOutcomes}
+                      nowMs={nowMs}
+                      showEmails={showEmails}
+                      resolvedTheme={resolvedTheme}
+                      canAct={canUseActions}
+                      onState={sources.applyResets}
+                    />
+                  )}
+                </div>
                 <p className={styles.sourceNote}>
                   <span>{t('quota_management.pool_sources_note')}</span>
                   {pacerState && (
@@ -253,25 +340,14 @@ export function QuotaPage() {
                       })}
                     </span>
                   )}
+                  {resetsState && (
+                    <span className={styles.sourceChip} data-state={resetsState}>
+                      {t('quota_management.pool_source_status_resets', {
+                        state: t(`quota_management.pool_source_state_${resetsState}`),
+                      })}
+                    </span>
+                  )}
                 </p>
-                <div className={styles.pools}>
-                  {shownPools.map((provider) => (
-                    <PoolCard
-                      key={provider}
-                      provider={provider}
-                      accounts={accountsByProvider.get(provider) ?? []}
-                      history={sources.history}
-                      nowMs={nowMs}
-                      range={range}
-                      metric={metric}
-                      burnWindow={burnWindow}
-                      futureUsage={futureUsage}
-                      showAccounts={showAccounts}
-                      showEmails={showEmails}
-                      resolvedTheme={resolvedTheme}
-                    />
-                  ))}
-                </div>
               </>
             )}
 

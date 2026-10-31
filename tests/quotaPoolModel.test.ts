@@ -12,6 +12,7 @@ import {
   rollWindow,
   simulatePool,
   summarizePool,
+  type SimulationGrant,
 } from '@/features/quota/pool/poolModel';
 import { buildPoolView, niceCeiling } from '@/features/quota/pool/poolView';
 import { WEEK_MS } from '@/features/quota/pool/signals';
@@ -210,7 +211,7 @@ describe('forward simulation', () => {
     );
     // "a" empties after 50 minutes of 12%/h... exactly as it resets.
     expect(result.firstEmpty).toEqual({ accountId: 'a', atMs: resetAt });
-    expect(result.stepUps).toEqual([{ t: resetAt, amount: 100, accountIds: ['a'] }]);
+    expect(result.stepUps).toEqual([{ t: resetAt, amount: 100, accountIds: ['a'], kind: 'reset' }]);
     const atReset = result.pool.filter((point) => point.t === resetAt);
     expect(atReset.map((point) => point.value)).toEqual([100, 200]);
     // After the reset "a" moves to the back of the queue: "b" (reset in 3 days) drains next.
@@ -229,7 +230,9 @@ describe('forward simulation', () => {
       ],
       { startMs: NOW, endMs: NOW + 2 * HOUR, burnPerHour: 0 }
     );
-    expect(result.stepUps).toEqual([{ t: resetAt, amount: 90, accountIds: ['a', 'b'] }]);
+    expect(result.stepUps).toEqual([
+      { t: resetAt, amount: 90, accountIds: ['a', 'b'], kind: 'reset' },
+    ]);
   });
 
   test('reports when the first account and then the whole pool run out', () => {
@@ -307,7 +310,12 @@ describe('pool view', () => {
     expect(view.members.map((member) => member.key)).toEqual(['a', 'b']);
     expect(view.missing.map((member) => member.key)).toEqual(['c']);
     expect(view.summary).toMatchObject({ capacity: 200, remaining: 150, poolEmptyAtMs: null });
-    expect(view.summary.nextReset).toEqual({ t: NOW + 2 * DAY, amount: 40, accountIds: ['a'] });
+    expect(view.summary.nextReset).toEqual({
+      t: NOW + 2 * DAY,
+      amount: 40,
+      accountIds: ['a'],
+      kind: 'reset',
+    });
     expect(view.remaining.recorded).toEqual([{ t: NOW, value: 150 }]);
     expect(view.remaining.projected[0]).toEqual({ t: NOW, value: 150 });
     expect(view.drain.projected.every((point) => point.value === 0)).toBe(true);
@@ -391,5 +399,122 @@ describe('drawing helpers', () => {
     expect(niceCeiling(3.7)).toBe(5);
     expect(niceCeiling(12)).toBe(20);
     expect(niceCeiling(0)).toBe(1);
+  });
+});
+
+describe('reset grants in the projection', () => {
+  const accounts = [
+    { id: 'a', used: 100, resetAtMs: NOW + 3 * DAY, periodMs: WEEK_MS },
+    { id: 'b', used: 50, resetAtMs: NOW + 4 * DAY, periodMs: WEEK_MS },
+  ];
+  const grant = (overrides: Partial<SimulationGrant>): SimulationGrant => ({
+    id: 'g',
+    accountId: 'a',
+    expiresAtMs: NOW + 6 * HOUR,
+    startsAtMs: null,
+    policy: 'expiry',
+    leadMs: 10 * 60_000,
+    requiresLimit: true,
+    left: 1,
+    ...overrides,
+  });
+  const run = (grants: SimulationGrant[], burnPerHour = 0) =>
+    simulatePool(accounts, { startMs: NOW, endMs: NOW + 2 * DAY, burnPerHour, grants });
+
+  test('expiry policy spends the lead time before expiry on a limited account', () => {
+    const result = run([grant({})]);
+    const at = NOW + 6 * HOUR - 10 * 60_000;
+    expect(result.grantOutcomes.g).toEqual({ kind: 'spent', atMs: at, amount: 100 });
+    expect(result.stepUps).toContainEqual({
+      t: at,
+      amount: 100,
+      accountIds: ['a'],
+      kind: 'grant',
+      grantId: 'g',
+    });
+    const atSpend = result.pool.filter((point) => point.t === at).map((point) => point.value);
+    expect(atSpend).toEqual([50, 150]);
+  });
+
+  test('Claude refuses while the account has quota; Codex refills what was used', () => {
+    const refused = run([grant({ accountId: 'b' })]);
+    expect(refused.grantOutcomes.g).toEqual({
+      kind: 'unused',
+      atMs: NOW + 6 * HOUR - 10 * 60_000,
+      reason: 'not_limited',
+    });
+    expect(refused.stepUps.filter((event) => event.kind === 'grant')).toHaveLength(0);
+    const codex = run([grant({ accountId: 'b', requiresLimit: false })]);
+    expect(codex.grantOutcomes.g).toMatchObject({ kind: 'spent', amount: 50 });
+  });
+
+  test('a refused expiry grant is spent if the account runs dry before it expires', () => {
+    // Without demand b keeps quota: refused at the due time, never spent.
+    const result = simulatePool(
+      [{ id: 'b', used: 50, resetAtMs: NOW + 4 * DAY, periodMs: WEEK_MS }],
+      {
+        startMs: NOW + 6 * HOUR - 20 * 60_000,
+        endMs: NOW + DAY,
+        burnPerHour: 0,
+        grants: [grant({ accountId: 'b' })],
+      }
+    );
+    expect(result.grantOutcomes.g).toMatchObject({ kind: 'unused', reason: 'not_limited' });
+    const draining = simulatePool(
+      [{ id: 'b', used: 92, resetAtMs: NOW + 4 * DAY, periodMs: WEEK_MS }],
+      {
+        startMs: NOW + 6 * HOUR - 20 * 60_000,
+        endMs: NOW + DAY,
+        burnPerHour: 32,
+        grants: [grant({ accountId: 'b' })],
+      }
+    );
+    // 8% at 32%/h runs dry 15 minutes in: 5 minutes after the refused attempt.
+    expect(draining.grantOutcomes.g).toEqual({
+      kind: 'spent',
+      atMs: NOW + 6 * HOUR - 5 * 60_000,
+      amount: 100,
+    });
+  });
+
+  test('limit policy spends when the account runs dry; off never spends', () => {
+    // a is already empty, so b serves and runs dry after 10 h at 5%/h.
+    const result = run([grant({ accountId: 'b', policy: 'limit', expiresAtMs: NOW + DAY })], 5);
+    expect(result.emptyAt.b).toBe(NOW + 10 * HOUR);
+    expect(result.grantOutcomes.g).toEqual({ kind: 'spent', atMs: NOW + 10 * HOUR, amount: 100 });
+    const off = run([grant({ policy: 'off' })]);
+    expect(off.grantOutcomes.g).toEqual({ kind: 'unused', atMs: null, reason: 'off' });
+    expect(off.stepUps.filter((event) => event.kind === 'grant')).toHaveLength(0);
+  });
+
+  test('a limit grant on an account that is already dry is spent at once', () => {
+    const result = run([grant({ policy: 'limit' })]);
+    expect(result.grantOutcomes.g).toEqual({ kind: 'spent', atMs: NOW, amount: 100 });
+  });
+
+  test('a limit grant that never sees the limit expires unused', () => {
+    const result = run(
+      [grant({ accountId: 'b', policy: 'limit', expiresAtMs: NOW + 5 * HOUR })],
+      1
+    );
+    expect(result.grantOutcomes.g).toEqual({
+      kind: 'unused',
+      atMs: NOW + 5 * HOUR,
+      reason: 'expired',
+    });
+  });
+
+  test('reports who serves now, who is next, and when each runs dry', () => {
+    const result = simulatePool(
+      [
+        { id: 'a', used: 0, resetAtMs: NOW + 5 * DAY, periodMs: WEEK_MS },
+        { id: 'b', used: 90, resetAtMs: NOW + DAY, periodMs: WEEK_MS },
+        { id: 'c', used: 100, resetAtMs: NOW + 2 * DAY, periodMs: WEEK_MS },
+      ],
+      { startMs: NOW, endMs: NOW + 12 * HOUR, burnPerHour: 2 }
+    );
+    expect(result.activeAccountId).toBe('b');
+    expect(result.nextAccountId).toBe('a');
+    expect(result.emptyAt).toEqual({ a: null, b: NOW + 5 * HOUR, c: NOW });
   });
 });

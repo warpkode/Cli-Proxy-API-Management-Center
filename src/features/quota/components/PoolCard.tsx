@@ -1,6 +1,6 @@
 /**
- * One provider's pooled quota: hero remaining, the four projection stats, the
- * chart, and (in Accounts mode) per-account lines plus a table.
+ * One provider's pooled quota: hero remaining, the projection stats (plus the
+ * reset grants waiting on this pool), the chart, and the accounts under it.
  *
  * Layout only; numbers come from buildPoolView (pool/poolView.ts).
  */
@@ -8,9 +8,9 @@
 import { useId, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ResolvedTheme } from '@/types';
-import { TYPE_COLORS } from '@/utils/quota';
+import type { QuotaResetsState } from '@/services/api/quotaResets';
 import { getAuthFileIcon, getTypeLabel } from '@/features/authFiles/constants';
-import { accountLabel, type PoolAccount } from '../pool/accounts';
+import { accountShortLabel, type PoolAccount } from '../pool/accounts';
 import {
   durationParts,
   formatInstant,
@@ -23,19 +23,24 @@ import { buildPoolView, niceCeiling } from '../pool/poolView';
 import { DEFAULT_HISTORY_INTERVAL_MS } from '../pool/history';
 import type { PoolProvider, QuotaHistory } from '../pool/types';
 import type { PoolMetric } from '../uiState';
-import { PoolAccountsTable } from './PoolAccountsTable';
-import { PoolChart, type PoolChartAccountLine } from './PoolChart';
+import { PoolAccountRows } from './PoolAccountRows';
+import { PoolChart } from './PoolChart';
 import styles from './PoolCard.module.scss';
 
 /** Drawing budget per series. */
 const MAX_POINTS = 720;
-/** Categorical slots available for per-account lines (never cycled). */
-const SERIES_SLOTS = 8;
+
+/** Provider hue for marks; text never takes it. */
+const POOL_COLORS: Record<PoolProvider, string> = {
+  claude: 'var(--brand-claude)',
+  codex: 'var(--brand-codex)',
+};
 
 export interface PoolCardProps {
   provider: PoolProvider;
   accounts: readonly PoolAccount[];
   history: QuotaHistory | null;
+  resets?: QuotaResetsState | null;
   nowMs: number;
   range: TimeRange;
   metric: PoolMetric;
@@ -52,6 +57,7 @@ export function PoolCard(props: PoolCardProps) {
     provider,
     accounts,
     history,
+    resets = null,
     nowMs,
     range,
     metric,
@@ -67,8 +73,7 @@ export function PoolCard(props: PoolCardProps) {
   const headingId = useId();
   const providerLabel = getTypeLabel(t, provider);
   const iconSrc = getAuthFileIcon(provider, resolvedTheme);
-  const colorSet = TYPE_COLORS[provider] ?? TYPE_COLORS.unknown;
-  const color = (resolvedTheme === 'dark' && colorSet.dark ? colorSet.dark : colorSet.light).text;
+  const color = POOL_COLORS[provider];
 
   const view = useMemo(
     () =>
@@ -80,35 +85,22 @@ export function PoolCard(props: PoolCardProps) {
         burnWindowHours: burnWindow,
         futureUsage,
         maxPoints: MAX_POINTS,
+        grants: resets?.grants,
+        grantLeadMs: resets?.leadMs,
       }),
-    [accounts, history, nowMs, range, burnWindow, futureUsage]
+    [accounts, history, nowMs, range, burnWindow, futureUsage, resets]
   );
   const { summary, burn, members } = view;
+  const multi = members.length > 1;
 
-  // Account colors follow the account (its position in the provider's list),
-  // so toggling modes or filters never repaints a survivor.
-  const colors = useMemo(() => {
-    const map = new Map<string, string>();
-    members.forEach((member, index) => {
-      if (index < SERIES_SLOTS) map.set(member.key, `var(--viz-series-${index + 1})`);
-    });
-    return map;
-  }, [members]);
-
-  const labelFor = (key: string) => {
+  const shortLabel = (key: string) => {
     const account = accounts.find((item) => item.key === key);
-    return account ? accountLabel(account.file, showEmails) : { text: key, masked: false };
+    return account ? accountShortLabel(account.file, showEmails) : { text: key, masked: false };
   };
-
-  const accountLines: PoolChartAccountLine[] =
-    showAccounts && metric === 'remaining'
-      ? view.remaining.accounts.flatMap((series) => {
-          const lineColor = colors.get(series.key);
-          if (!lineColor) return [];
-          const label = labelFor(series.key);
-          return [{ ...series, color: lineColor, label: label.text, masked: label.masked }];
-        })
-      : [];
+  const stepNames = (ids: readonly string[]) => {
+    const names = ids.slice(0, 2).map((id) => shortLabel(id).text);
+    return ids.length > 2 ? `${names.join(', ')} +${ids.length - 2}` : names.join(', ');
+  };
 
   const intervalMs = history?.intervalMs ?? DEFAULT_HISTORY_INTERVAL_MS;
   const bucketMs = (range.endMs - range.startMs) / (MAX_POINTS / 2 - 1);
@@ -124,14 +116,23 @@ export function PoolCard(props: PoolCardProps) {
     date: formatShortDate(summary.horizonEndMs, locale),
   });
 
-  const firstEmptyLabel = summary.firstEmpty ? labelFor(summary.firstEmpty.accountId) : null;
+  const firstEmptyLabel = summary.firstEmpty ? shortLabel(summary.firstEmpty.accountId) : null;
   const plans = Array.from(
     new Set(members.map((member) => member.quota.plan).filter((plan): plan is string => !!plan))
   );
 
+  const pending = view.grants.pending;
+  const nextAuto = pending
+    .map((grant) => view.grants.outcomes[grant.id])
+    .filter((outcome) => outcome?.kind === 'spent')
+    .map((outcome) => outcome.atMs as number)
+    .sort((left, right) => left - right)[0];
+  const soonestExpiry = pending.find((grant) => grant.expiresAtMs !== null)?.expiresAtMs ?? null;
+
   const drainMax = niceCeiling(
     Math.max(1, view.projectedBurnPerHour, ...view.drain.recorded.map((point) => point.value))
   );
+  const chartHeight = multi ? 300 : 240;
 
   return (
     <section className={styles.card} aria-labelledby={headingId} data-provider={provider}>
@@ -159,7 +160,7 @@ export function PoolCard(props: PoolCardProps) {
               capacity: formatPercent(summary.capacity),
             })}
           </span>
-          {plans.length === 1 && <span className={styles.planChip}>{plans[0]}</span>}
+          {plans.length === 1 && <span className={styles.plan}>{plans[0]}</span>}
         </p>
 
         <dl className={styles.stats}>
@@ -200,7 +201,7 @@ export function PoolCard(props: PoolCardProps) {
             <dd>
               {summary.nextReset ? (
                 <>
-                  <strong>+{formatPercent(summary.nextReset.amount)}</strong>{' '}
+                  +{formatPercent(summary.nextReset.amount)}{' '}
                   {formatInstant(summary.nextReset.t, nowMs, locale)}
                 </>
               ) : (
@@ -220,6 +221,23 @@ export function PoolCard(props: PoolCardProps) {
               )}
             </dd>
           </div>
+          {pending.length > 0 && (
+            <div className={styles.stat}>
+              <dt>{t('quota_management.pool_stat_resets')}</dt>
+              <dd className={styles.grantStat}>
+                ⟲ {pending.length} ·{' '}
+                {nextAuto !== undefined
+                  ? t('quota_management.pool_resets_auto', {
+                      time: formatInstant(nextAuto, nowMs, locale),
+                    })
+                  : soonestExpiry !== null
+                    ? t('quota_management.pool_resets_expires', {
+                        time: formatInstant(soonestExpiry, nowMs, locale),
+                      })
+                    : t('quota_management.pool_resets_kept')}
+              </dd>
+            </div>
+          )}
         </dl>
       </div>
 
@@ -237,7 +255,11 @@ export function PoolCard(props: PoolCardProps) {
           projected={view.remaining.projected}
           recordedStepUps={view.remaining.recordedStepUps}
           projectedStepUps={view.remaining.projectedStepUps}
-          accountLines={accountLines}
+          stepNames={multi ? stepNames : undefined}
+          expiryMarkers={view.grants.expiryMarkers.map((marker) => ({
+            t: marker.t,
+            key: marker.grantId,
+          }))}
           emptyAtMs={summary.poolEmptyAtMs}
           maxGapMs={maxGapMs}
           seriesLabel={t('quota_management.pool_legend_pool')}
@@ -251,6 +273,7 @@ export function PoolCard(props: PoolCardProps) {
             capacity: formatPercent(summary.capacity),
           })}
           initialWidth={initialChartWidth}
+          height={chartHeight}
         />
       ) : (
         <PoolChart
@@ -266,6 +289,7 @@ export function PoolCard(props: PoolCardProps) {
           formatReadout={formatRate}
           ariaLabel={t('quota_management.pool_drain_chart_label', { provider: providerLabel })}
           initialWidth={initialChartWidth}
+          height={chartHeight}
         />
       )}
 
@@ -281,12 +305,15 @@ export function PoolCard(props: PoolCardProps) {
       )}
 
       {showAccounts && accounts.length > 0 && (
-        <PoolAccountsTable
+        <PoolAccountRows
           caption={t('quota_management.pool_table_label', { provider: providerLabel })}
           accounts={accounts}
-          colors={colors}
+          color={color}
           showEmails={showEmails}
           nowMs={nowMs}
+          plan={view.plan}
+          grants={pending}
+          outcomes={view.grants.outcomes}
         />
       )}
     </section>

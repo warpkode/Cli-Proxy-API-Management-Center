@@ -1,0 +1,138 @@
+.rows {
+  margin: 16px 0 0;
+  padding: 4px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--surface-hairline, var(--border-color));
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--surface-hairline, var(--border-color));
+  font-size: 13.5px;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hidden emails: the DOM holds a masked address, blurred for screen sharing. */
+.masked {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  filter: blur(4px);
+  user-select: none;
+}
+
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border-hover);
+}
+
+.row[data-tone='empty'] .dot {
+  background: var(--accent-red);
+}
+
+.row[data-tone='held'] .dot {
+  background: var(--accent-amber);
+}
+
+.meterCell {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 10px;
+}
+
+.value {
+  min-width: 34px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.meter {
+  position: relative;
+  width: 130px;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--surface-selected);
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+}
+
+.status {
+  padding-left: 16px;
+  color: var(--text-secondary);
+
+  strong {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+}
+
+.row[data-tone='empty'] .status strong {
+  color: var(--accent-red);
+}
+
+.extra {
+  justify-self: end;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.grants {
+  color: var(--accent-amber);
+}
+
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+
+  .meterCell,
+  .extra {
+    justify-self: start;
+    padding-left: 16px;
+  }
+
+  .meter {
+    width: 100px;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .masked {
+    filter: none;
+  }
+}

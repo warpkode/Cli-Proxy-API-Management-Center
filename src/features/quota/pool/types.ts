@@ -91,4 +91,7 @@ export interface StepUpEvent {
   /** Percentage points restored (summed across accounts resetting together). */
   amount: number;
   accountIds: string[];
+  /** `grant`: a reset grant or credit was spent; absent or `reset`: the weekly window reset. */
+  kind?: 'reset' | 'grant';
+  grantId?: string;
 }

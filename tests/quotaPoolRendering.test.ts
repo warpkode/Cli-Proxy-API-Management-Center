@@ -77,11 +77,13 @@ describe('pool card static render', () => {
     expect(plain).toContain('Burn, last 3h 1.5%/h');
     // Chart: solid recorded + dashed projected paths, the Now marker and a legend.
     expect(markup).toContain('<svg');
-    // Claude's dark-theme hue; solid recorded line, dashed projection, two ~10% areas.
-    const lines = markup.match(/<path d="M[^"]*" stroke="#e8a882"[^>]*>/g) ?? [];
+    // Claude's hue token; solid recorded line, dashed projection, one faded area.
+    const lines = markup.match(/<path[^>]*style="stroke:var\(--brand-claude\)"[^>]*>/g) ?? [];
     expect(lines).toHaveLength(2);
-    expect(lines.filter((line) => line.includes('stroke-dasharray="6 5"'))).toHaveLength(1);
-    expect(markup.match(/<path d="M[^"]*Z" fill="#e8a882"/g)).toHaveLength(2);
+    expect(lines.filter((line) => line.includes('stroke-dasharray="6 6"'))).toHaveLength(1);
+    expect(markup.match(/<path[^>]*d="M[^"]*Z" fill="url\(#pool-fill-[^"]+\)"/g)).toHaveLength(1);
+    // Each step names the account that refills (short names, masked by default).
+    expect(plain).toMatch(/\+100% c•+/);
     expect(plain).toContain('Now');
     expect(plain).toContain('Recorded');
     expect(plain).toContain('Projected');
@@ -100,23 +102,21 @@ describe('pool card static render', () => {
     expect(shown).toContain('alpha@example.com');
   });
 
-  test('accounts mode adds per-account lines and a status table', () => {
+  test('accounts mode lists what each account is doing, active first', () => {
     const markup = render({ showAccounts: true, showEmails: true });
     const plain = text(markup);
-    expect(markup).toContain('<table');
     expect(markup).toContain('aria-label="Claude accounts"');
-    for (const header of ['Account', 'Weekly used', '5-hour used', 'Status', 'Data']) {
-      expect(plain).toContain(header);
-    }
-    expect(plain).toContain('Weekly exhausted');
-    expect(plain).toContain('Available');
-    expect(plain).toContain('seat pacer');
-    expect(plain).toContain('headers');
-    // Four accounts, four categorical lines, keyed in the legend.
-    for (let slot = 1; slot <= 4; slot += 1) {
-      expect(markup).toContain(`var(--viz-series-${slot})`);
-    }
-    expect(markup).not.toContain('var(--viz-series-5)');
+    expect(markup).not.toContain('<table');
+    // c1 resets soonest with quota left, so it serves now; c2 is next; c3 is dry.
+    const order = ['alpha', 'charlie', 'bravo', 'delta'].map((name) =>
+      plain.indexOf(`${name}@example.com`)
+    );
+    expect(order).toEqual([...order].sort((left, right) => left - right));
+    expect(plain).toMatch(/alpha@example\.com 55% In use · empties in \d+d \d+h/);
+    expect(plain).toMatch(/charlie@example\.com 0% Empty · refills /);
+    expect(plain).toMatch(/bravo@example\.com 90% Up next/);
+    expect(plain).toMatch(/delta@example\.com 100% Waiting/);
+    expect(markup.match(/role="meter"/g)).toHaveLength(4);
   });
 
   test('drain-rate mode charts %/h', () => {

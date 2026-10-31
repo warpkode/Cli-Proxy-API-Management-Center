@@ -3,6 +3,7 @@
  * card stays a layout component and the numbers are testable.
  */
 
+import type { ResetGrant } from '@/services/api/quotaResets';
 import type { PoolAccount } from './accounts';
 import { toSimulationAccounts } from './accounts';
 import {
@@ -17,7 +18,9 @@ import {
   summarizePool,
   type BurnRate,
   type FutureUsageMode,
+  type GrantOutcome,
   type PoolSummary,
+  type SimulationGrant,
   type TimeRange,
 } from './poolModel';
 import type { QuotaHistory, SeriesPoint, StepUpEvent } from './types';
@@ -49,6 +52,19 @@ export interface PoolView {
     recorded: SeriesPoint[];
     projected: SeriesPoint[];
   };
+  /** Who drains now, who is next, and when each account runs dry (projection). */
+  plan: {
+    activeId: string | null;
+    nextId: string | null;
+    emptyAt: Record<string, number | null>;
+  };
+  grants: {
+    /** Unspent grants on this pool's members, soonest expiry first. */
+    pending: ResetGrant[];
+    outcomes: Record<string, GrantOutcome>;
+    /** Expiry instants inside the range of grants the projection leaves unspent. */
+    expiryMarkers: { t: number; grantId: string; accountId: string }[];
+  };
 }
 
 export interface PoolViewInput {
@@ -60,6 +76,33 @@ export interface PoolViewInput {
   futureUsage: FutureUsageMode;
   /** Drawing budget per series; ~one point per horizontal pixel. */
   maxPoints?: number;
+  /** Grants and credits from the hub's reset scheduler (any provider; filtered here). */
+  grants?: readonly ResetGrant[];
+  /** How long before expiry the scheduler's `expiry` policy spends. */
+  grantLeadMs?: number;
+}
+
+const DEFAULT_GRANT_LEAD_MS = 10 * 60 * 1000;
+
+/** Grants the scheduler may still spend: pending, with resets left, not yet expired. */
+export function pendingGrants(
+  grants: readonly ResetGrant[],
+  accountIds: ReadonlySet<string>,
+  nowMs: number
+): ResetGrant[] {
+  return grants
+    .filter(
+      (grant) =>
+        accountIds.has(grant.accountId) &&
+        grant.state === 'pending' &&
+        grant.left > 0 &&
+        (grant.expiresAtMs === null || grant.expiresAtMs > nowMs)
+    )
+    .sort(
+      (left, right) =>
+        (left.expiresAtMs ?? Number.POSITIVE_INFINITY) -
+        (right.expiresAtMs ?? Number.POSITIVE_INFINITY)
+    );
 }
 
 const within = (points: readonly SeriesPoint[], fromMs: number, toMs: number) => {
@@ -88,11 +131,29 @@ export function buildPoolView(input: PoolViewInput): PoolView {
   const burn = computeBurnRate(burnIndex, nowMs, burnWindowHours);
   const projectedBurnPerHour = burn.ratePerHour * FUTURE_USAGE_FACTORS[futureUsage];
 
-  const horizonEndMs = projectionHorizonEnd(range.endMs, nowMs);
+  const pending = pendingGrants(input.grants ?? [], ids, nowMs);
+  const leadMs = input.grantLeadMs ?? DEFAULT_GRANT_LEAD_MS;
+  const simGrants: SimulationGrant[] = pending.map((grant) => ({
+    id: grant.id,
+    accountId: grant.accountId,
+    expiresAtMs: grant.expiresAtMs,
+    startsAtMs: grant.startsAtMs,
+    policy: grant.policy,
+    leadMs,
+    requiresLimit: grant.requiresLimit,
+    left: grant.left,
+  }));
+  // Look far enough ahead to place every pending grant's expiry.
+  const latestExpiry = pending.reduce(
+    (latest, grant) => Math.max(latest, grant.expiresAtMs ?? 0),
+    0
+  );
+  const horizonEndMs = Math.max(projectionHorizonEnd(range.endMs, nowMs), latestExpiry);
   const simulation = simulatePool(simAccounts, {
     startMs: nowMs,
     endMs: horizonEndMs,
     burnPerHour: projectedBurnPerHour,
+    grants: simGrants,
   });
   const summary = summarizePool(simAccounts, simulation, nowMs, horizonEndMs);
 
@@ -169,6 +230,23 @@ export function buildPoolView(input: PoolViewInput): PoolView {
     drain: {
       recorded: downsampleSeries(drainRecorded, maxPoints),
       projected: drainProjected,
+    },
+    plan: {
+      activeId: simulation.activeAccountId,
+      nextId: simulation.nextAccountId,
+      emptyAt: simulation.emptyAt,
+    },
+    grants: {
+      pending,
+      outcomes: simulation.grantOutcomes,
+      expiryMarkers: pending.flatMap((grant) =>
+        grant.expiresAtMs !== null &&
+        simulation.grantOutcomes[grant.id]?.kind !== 'spent' &&
+        grant.expiresAtMs >= range.startMs &&
+        grant.expiresAtMs <= range.endMs
+          ? [{ t: grant.expiresAtMs, grantId: grant.id, accountId: grant.accountId }]
+          : []
+      ),
     },
   };
 }
