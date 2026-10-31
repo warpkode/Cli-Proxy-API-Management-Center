@@ -3,10 +3,10 @@
 
 .panel {
   background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  padding: 20px;
+  border: 0;
+  border-radius: var(--radius-card, 18px);
+  box-shadow: none;
+  padding: 22px 24px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -74,7 +74,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 3px;
   }
 }
@@ -117,7 +117,7 @@
 }
 
 .title {
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
@@ -141,12 +141,12 @@
   width: fit-content;
   color: var(--text-primary);
   margin-top: 10px;
-  padding: 8px 11px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  font-size: 13px;
-  font-weight: 600;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control, 11px);
+  background: var(--bg-tertiary);
+  font-size: 13.5px;
+  font-weight: 500;
   line-height: 1.4;
   max-width: min(520px, 100%);
   overflow-wrap: anywhere;
@@ -159,49 +159,19 @@
     transform 0.16s ease;
 
   &:hover {
-    border-color: var(--border-hover);
     background: var(--bg-hover);
-    transform: translateY(-1px);
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 2px;
   }
 }
 
-.sponsorLinkEmphasis {
-  color: var(--amber-text);
-  border-color: color-mix(in srgb, var(--amber-color) 48%, var(--border-color));
-  background: color-mix(in srgb, var(--amber-color) 14%, var(--bg-primary));
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--amber-color) 18%, transparent);
-
-  &:hover {
-    border-color: color-mix(in srgb, var(--amber-color) 72%, var(--border-color));
-    background: color-mix(in srgb, var(--amber-color) 20%, var(--bg-primary));
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--amber-color) 18%, transparent);
-  }
-
-  &:focus-visible {
-    outline-color: var(--amber-color);
-  }
-}
-
+/* 推广链接：fork 设计语言下与次级按钮同色，不再用琥珀/品牌蓝强调 */
+.sponsorLinkEmphasis,
 .sponsorLinkKimi {
-  color: color-mix(in srgb, #1783ff 82%, var(--text-primary));
-  border-color: color-mix(in srgb, #1783ff 48%, var(--border-color));
-  background: color-mix(in srgb, #1783ff 14%, var(--bg-primary));
-  box-shadow: 0 1px 0 color-mix(in srgb, #1783ff 18%, transparent);
-
-  &:hover {
-    border-color: color-mix(in srgb, #1783ff 72%, var(--border-color));
-    background: color-mix(in srgb, #1783ff 20%, var(--bg-primary));
-    box-shadow: 0 4px 12px color-mix(in srgb, #1783ff 18%, transparent);
-  }
-
-  &:focus-visible {
-    outline-color: #1783ff;
-  }
+  color: var(--text-primary);
 }
 
 .kimiPromo {
@@ -240,9 +210,9 @@
   width: 100%;
   height: 38px;
   padding: 0 12px 0 38px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  border-radius: var(--radius-control, 11px);
+  border: 1px solid transparent;
+  background: var(--surface-well);
   color: var(--text-primary);
   font-size: 14px;
   box-sizing: border-box;
@@ -253,8 +223,8 @@
 
   &:focus {
     outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px var(--primary-10);
+    border-color: var(--border-hover);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 10%, transparent);
   }
 }
 
@@ -269,11 +239,12 @@
 }
 
 .empty {
-  border: 1px dashed var(--border-color);
-  border-radius: var(--radius-md);
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-well);
   padding: 32px;
   text-align: center;
-  color: var(--muted-foreground);
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -285,10 +256,11 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 13px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
+  padding: 9px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control, 11px);
+  /* 位于 well 之上：用选中色才能从 well 中浮出 */
+  background: var(--surface-selected);
   color: var(--text-primary);
   cursor: pointer;
   font-size: 14px;
@@ -302,12 +274,11 @@
     box-shadow 0.16s ease;
 
   &:hover {
-    border-color: var(--border-hover);
-    background: var(--bg-hover);
+    background: color-mix(in srgb, var(--text-primary) 6%, var(--surface-selected));
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 2px;
   }
 
@@ -318,19 +289,5 @@
 }
 
 .emptyActionButtonEmphasis {
-  color: var(--amber-text);
-  border-color: color-mix(in srgb, var(--amber-color) 48%, var(--border-color));
-  background: color-mix(in srgb, var(--amber-color) 14%, var(--bg-primary));
-  font-weight: 600;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--amber-color) 18%, transparent);
-
-  &:hover {
-    border-color: color-mix(in srgb, var(--amber-color) 72%, var(--border-color));
-    background: color-mix(in srgb, var(--amber-color) 20%, var(--bg-primary));
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--amber-color) 18%, transparent);
-  }
-
-  &:focus-visible {
-    outline-color: var(--amber-color);
-  }
+  color: var(--text-primary);
 }

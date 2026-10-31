@@ -19,20 +19,17 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 16px;
-  padding: 10px 14px;
-  border-radius: 16px;
-  --glass-blur: 14px;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  box-shadow: var(--shadow-lg);
+  padding: 10px 12px 10px 18px;
+  border-radius: var(--radius-card, 18px);
+  border: 0;
+  background: var(--floating-surface, var(--bg-primary));
+  box-shadow: var(--floating-shadow, var(--shadow-lg));
 }
 
 /* 状态文案：mono 遥测 */
 .status {
-  font-family: $font-mono;
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 14px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   padding-right: 4px;
   min-width: 0;
@@ -40,11 +37,11 @@
 }
 
 .statusWarning {
-  color: var(--amber-text);
+  color: var(--accent-amber, var(--amber-text));
 }
 
 .statusError {
-  color: var(--viz-failure);
+  color: var(--error-color);
 }
 
 .statusBusy,
@@ -53,7 +50,7 @@
 }
 
 .statusOk {
-  color: var(--viz-success);
+  color: var(--success-color);
 }
 
 .actionsGroup {
@@ -70,13 +67,13 @@
   gap: 7px;
   border: 0;
   cursor: pointer;
-  background: var(--text-primary);
-  color: var(--bg-secondary);
-  border-radius: $radius-full;
-  padding: 9px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
+  background: var(--primary-color);
+  color: var(--primary-contrast);
+  border-radius: var(--radius-control, 11px);
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
   transition:
     transform var(--dur-press, 160ms) var(--ease-out-strong, ease-out),
     background-color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out),
@@ -92,16 +89,14 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 2px;
   }
 }
 
 @media (hover: hover) and (pointer: fine) {
   .savePill:hover:not(:disabled) {
-    transform: translateY(-1px);
-    background: color-mix(in srgb, var(--text-primary) 86%, var(--bg-secondary));
-    box-shadow: 0 12px 26px color-mix(in srgb, var(--text-primary) 22%, transparent);
+    background: var(--primary-hover);
   }
 }
 
@@ -112,13 +107,13 @@
   gap: 6px;
   border: 0;
   cursor: pointer;
-  background: none;
-  color: var(--text-secondary);
-  border-radius: $radius-full;
-  padding: 9px 12px;
-  font-size: 12.5px;
-  font-weight: 550;
-  line-height: 1;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-radius: var(--radius-control, 11px);
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
   transition:
     color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out),
     transform var(--dur-press, 160ms) var(--ease-out-strong, ease-out);

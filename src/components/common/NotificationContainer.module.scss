@@ -31,10 +31,10 @@
   width: fit-content;
   max-width: min(26rem, 100%);
   padding: 0.625rem 0.625rem 0.625rem 0.875rem;
-  border: 1px solid var(--border-color);
-  border-radius: $radius-lg;
+  border: 0;
+  border-radius: 14px;
   background: var(--floating-surface);
-  box-shadow: var(--shadow-lg), var(--shadow);
+  box-shadow: var(--floating-shadow);
   color: var(--text-primary);
   pointer-events: auto;
   opacity: 1;

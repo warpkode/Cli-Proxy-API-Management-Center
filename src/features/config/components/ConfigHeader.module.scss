@@ -4,25 +4,26 @@
 
 .header {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px 24px;
+  gap: 12px 24px;
   flex-wrap: wrap;
 }
 
 .copy {
   display: flex;
-  flex-direction: column;
-  gap: 7px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
   min-width: 0;
 }
 
 .title {
   margin: 0;
-  font-size: clamp(26px, 3.2vw, 30px);
-  line-height: 1.15;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: var(--page-title-size, 24px);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
 }
 
@@ -31,23 +32,11 @@
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 4px 8px;
-  font-family: $font-mono;
-  font-size: 13px;
-  font-weight: 500;
+  gap: 4px 6px;
+  font-size: 14.5px;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
   color: var(--text-secondary);
-
-  /* 终端游标：全站页头 meta 行的结构记号 */
-  &::before {
-    content: '▍';
-    color: var(--viz-success);
-    font-size: 13px;
-    line-height: 1;
-    align-self: center;
-    margin-right: 1px;
-  }
 }
 
 .metaDot {
@@ -60,15 +49,15 @@
 }
 
 .metaWarning {
-  color: var(--amber-text);
+  color: var(--accent-amber, var(--amber-text));
 }
 
 .metaError {
-  color: var(--viz-failure);
+  color: var(--error-color);
 }
 
 .metaOk {
-  color: var(--viz-success);
+  color: var(--success-color);
 }
 
 /* ---------- 动作区 ---------- */
@@ -76,7 +65,7 @@
 .actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -87,13 +76,13 @@
   gap: 6px;
   border: 0;
   cursor: pointer;
-  background: none;
-  color: var(--text-secondary);
-  border-radius: $radius-full;
-  padding: 10px 14px;
-  font-size: 13px;
-  font-weight: 550;
-  line-height: 1;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-radius: var(--radius-control, 11px);
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
   transition:
     color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out),
     transform var(--dur-press, 160ms) var(--ease-out-strong, ease-out);
@@ -108,14 +97,14 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 2px;
   }
 }
 
 @media (hover: hover) and (pointer: fine) {
   .ghostAction:hover:not(:disabled) {
-    color: var(--text-primary);
+    background: var(--bg-hover);
   }
 }
 

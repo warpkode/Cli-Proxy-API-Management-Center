@@ -2,10 +2,10 @@
 @use '../../../styles/variables' as *;
 
 .wrap {
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
+  border: 0;
+  border-radius: 14px;
   overflow: hidden;
-  background: var(--bg-primary);
+  background: transparent;
 }
 
 .scroll {
@@ -16,17 +16,17 @@
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-primary);
 }
 
 .head {
-  background: var(--muted-bg);
+  background: transparent;
 
   th {
-    color: var(--muted-foreground);
-    font-weight: 500;
-    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 400;
+    font-size: 13px;
     text-align: left;
     padding: 10px 14px;
     border-bottom: 1px solid var(--border-color);
@@ -39,7 +39,7 @@
 }
 
 .body {
-  background: var(--bg-primary);
+  background: transparent;
 }
 
 .row {
@@ -53,11 +53,11 @@
   }
 
   &:hover td {
-    background: color-mix(in srgb, var(--accent-bg) 50%, transparent);
+    background: color-mix(in srgb, var(--text-primary) 3%, transparent);
   }
 
   &.selected td {
-    background: var(--primary-8);
+    background: var(--surface-selected, var(--primary-8));
   }
 }
 

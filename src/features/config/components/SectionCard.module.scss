@@ -8,10 +8,10 @@
   gap: clamp(16px, 2vw, 22px);
   min-width: 0;
   box-sizing: border-box;
-  padding: clamp(20px, 2.4vw, 28px);
-  border: 1px solid var(--border-color);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--bg-primary) 82%, transparent);
+  padding: 22px 24px 24px;
+  border: 0;
+  border-radius: var(--radius-card, 18px);
+  background: var(--bg-primary);
 
   @include mobile {
     gap: 14px;
@@ -37,8 +37,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
   align-items: start;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 4px;
 
   @include mobile {
     grid-template-columns: minmax(0, 1fr);
@@ -60,14 +59,13 @@
   min-width: 32px;
   height: 28px;
   padding: 0 8px;
-  border: 1px solid var(--border-color);
+  border: 0;
   border-radius: 8px;
+  background: var(--surface-well, var(--bg-tertiary));
   color: var(--text-secondary);
-  font-family: $font-mono;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.08em;
 }
 
 .iconBadge {
@@ -91,9 +89,9 @@
 .title {
   margin: 0;
   color: var(--text-primary);
-  font-size: clamp(18px, 1.6vw, 22px);
-  font-weight: 680;
-  line-height: 1.18;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
   letter-spacing: -0.01em;
 }
 
@@ -101,8 +99,8 @@
   margin: 0;
   max-width: 72ch;
   color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 14px;
+  line-height: 1.55;
 
   @include mobile {
     max-width: none;

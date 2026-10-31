@@ -11,9 +11,9 @@
   max-width: 100%;
   height: 48px;
   padding: 0 6px 0 2px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--bg-secondary);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--surface-well, var(--bg-secondary));
   color: var(--text-primary);
   cursor: grab;
   transition:
@@ -46,8 +46,7 @@
 }
 
 .serving {
-  border-color: color-mix(in srgb, var(--viz-success) 55%, var(--border-color));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--viz-success) 18%, transparent);
+  border-color: color-mix(in srgb, var(--success-color) 40%, transparent);
 }
 
 .muted {
@@ -81,7 +80,7 @@
   transition: color var(--dur-hover) var(--ease-out-strong);
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 1px;
   }
 }
@@ -94,10 +93,10 @@
   width: 26px;
   height: 26px;
   border-radius: 7px;
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   overflow: hidden;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-secondary);
 
   img {
@@ -117,14 +116,14 @@
 
 .name {
   @include text-ellipsis;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 500;
   line-height: 1.2;
 }
 
 .kind {
   @include text-ellipsis;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.2;
   color: var(--text-tertiary);
 }
@@ -135,19 +134,22 @@
 
 .share {
   flex-shrink: 0;
-  font-family: $font-mono;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
-  color: var(--viz-success);
+  color: var(--text-secondary);
+}
+
+.serving .share {
+  color: var(--success-color);
 }
 
 .chip {
   flex-shrink: 0;
-  padding: 2px 7px;
-  border-radius: $radius-full;
+  padding: 2px 8px;
+  border-radius: 7px;
   background: var(--bg-tertiary);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -178,7 +180,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 1px;
   }
 }
@@ -199,9 +201,9 @@
   flex-direction: column;
   min-width: 168px;
   max-width: 240px;
-  padding: 4px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
+  padding: 6px;
+  border: 0;
+  border-radius: 14px;
   background: var(--floating-surface);
   box-shadow: var(--floating-shadow);
   cursor: default;
@@ -211,8 +213,8 @@
   button {
     @include button-reset;
     padding: 8px 10px;
-    border-radius: 7px;
-    font-size: 13px;
+    border-radius: var(--radius-chip, 9px);
+    font-size: 14px;
     text-align: left;
     color: var(--text-primary);
     cursor: pointer;
@@ -223,15 +225,16 @@
     }
 
     &:focus-visible {
-      outline: none;
-      background: var(--bg-tertiary);
+      outline: 2px solid var(--text-primary);
+      outline-offset: -2px;
+      background: var(--bg-hover);
     }
   }
 }
 
 @media (hover: hover) and (pointer: fine) {
   .menu button:hover:not(:disabled) {
-    background: var(--bg-tertiary);
+    background: var(--bg-hover);
   }
 }
 

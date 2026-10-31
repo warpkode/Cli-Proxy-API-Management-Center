@@ -1,20 +1,21 @@
 @use '../../../styles/mixins' as *;
 
-/* 与额度页/凭证库头部同语汇：紧排标题 / ▍mono 遥测 meta 行。 */
+/* 标题行：24px 标题 + 同行弱化副标题（fork 设计语言）。 */
 
 .header {
   display: flex;
-  flex-direction: column;
-  gap: 7px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
   min-width: 0;
 }
 
 .title {
   margin: 0;
-  font-size: clamp(26px, 3.2vw, 30px);
-  line-height: 1.15;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: var(--page-title-size, 24px);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
 }
 
@@ -24,21 +25,10 @@
   align-items: baseline;
   flex-wrap: wrap;
   gap: 4px 8px;
-  font-family: $font-mono;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14.5px;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
   color: var(--text-secondary);
-
-  &::before {
-    content: '▍';
-    color: var(--viz-success);
-    font-size: 13px;
-    line-height: 1;
-    align-self: center;
-    margin-right: 1px;
-  }
 }
 
 .metaDot {
@@ -68,7 +58,7 @@
 }
 
 .metaAdded {
-  color: var(--viz-success);
+  color: var(--success-color);
 }
 
 @media (prefers-reduced-motion: reduce) {

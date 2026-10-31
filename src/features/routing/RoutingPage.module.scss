@@ -30,18 +30,18 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 
 .header {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px 24px;
+  gap: 12px 24px;
   flex-wrap: wrap;
 }
 
 .title {
   margin: 0;
-  font-size: clamp(26px, 3.2vw, 30px);
-  line-height: 1.15;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: var(--page-title-size, 24px);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
 }
 
@@ -76,7 +76,7 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
   max-width: 72ch;
   margin: 0;
   padding-left: $label-x;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.55;
   color: var(--text-tertiary);
 
@@ -130,8 +130,7 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 }
 
 .entryDot {
-  background: var(--viz-success);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--viz-success) 16%, transparent);
+  background: var(--success-color);
 }
 
 .exhaustedDot {
@@ -147,8 +146,8 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 }
 
 .entryLabel {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -160,7 +159,7 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 }
 
 .exhaustedText {
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--text-tertiary);
 }
 
@@ -178,17 +177,16 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 }
 
 .modelField:global(.input) {
-  height: 36px;
+  height: 38px;
   padding-top: 0;
   padding-bottom: 0;
-  border-radius: 10px;
-  background: var(--bg-primary);
-  font-size: 13px;
+  border-radius: var(--radius-control, 11px);
+  background: var(--surface-well, var(--bg-primary));
+  font-size: 14px;
 }
 
 .modelProgress {
-  font-family: $font-mono;
-  font-size: 11px;
+  font-size: 12.5px;
   font-variant-numeric: tabular-nums;
   color: var(--text-tertiary);
 }
@@ -225,8 +223,8 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
   justify-content: center;
   height: 40px;
   border: 1px dashed var(--border-primary);
-  border-radius: 12px;
-  font-size: 12px;
+  border-radius: 14px;
+  font-size: 13px;
   color: var(--text-tertiary);
   transition:
     border-color var(--dur-hover) var(--ease-out-strong),
@@ -235,8 +233,8 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 }
 
 .gapHover .gapDrop {
-  border-color: var(--viz-success);
-  background: color-mix(in srgb, var(--viz-success) 6%, transparent);
+  border-color: var(--text-secondary);
+  background: var(--surface-well, transparent);
   color: var(--text-primary);
 }
 
@@ -248,8 +246,8 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
   flex-direction: column;
   gap: 12px;
   padding: 14px $tier-pad $tier-pad;
-  border: 1px solid var(--border-color);
-  border-radius: 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-card, 18px);
   background: var(--bg-primary);
   transition:
     border-color var(--dur-hover) var(--ease-out-strong),
@@ -258,8 +256,8 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 }
 
 .tierHover {
-  border-color: var(--viz-success);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--viz-success) 12%, transparent);
+  border-color: var(--border-hover);
+  background: color-mix(in srgb, var(--text-primary) 3%, var(--bg-primary));
 }
 
 .tierHead {
@@ -280,8 +278,7 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
   height: $index-size;
   border-radius: 50%;
   background: var(--bg-tertiary);
-  font-family: $font-mono;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
@@ -291,22 +288,21 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 }
 
 .tierName {
-  font-size: 14px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 600;
   letter-spacing: -0.005em;
   color: var(--text-primary);
 }
 
 .tierPriority,
 .tierPriorityChanged {
-  font-family: $font-mono;
-  font-size: 11.5px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   color: var(--text-tertiary);
 }
 
 .tierPriorityChanged {
-  color: var(--amber-color);
+  color: var(--accent-amber, var(--amber-color));
 }
 
 /* State reads as a quiet status line on the right; its dot carries the color. */
@@ -315,7 +311,7 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
   align-items: center;
   gap: 7px;
   margin-left: auto;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.4;
   color: var(--text-tertiary);
 
@@ -347,16 +343,14 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 }
 
 .tierActive {
-  border-color: color-mix(in srgb, var(--viz-success) 38%, var(--border-color));
-
   .tierIndex {
-    background: var(--viz-success);
-    color: #fff;
+    background: var(--success-color);
+    color: var(--primary-contrast);
   }
 
   .tierState {
-    color: var(--viz-success);
-    font-weight: 600;
+    color: var(--success-color);
+    font-weight: 500;
   }
 }
 
@@ -366,7 +360,7 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 }
 
 .tierCooling .tierState {
-  color: var(--amber-color);
+  color: var(--accent-amber, var(--amber-color));
 }
 
 .tierUnknown .tierState {
@@ -376,6 +370,7 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 /* Skipped tiers recede by outline, not opacity, so their (already dimmed) cards stay legible. */
 .tierSkipped {
   border-style: dashed;
+  border-color: var(--border-primary);
   background: transparent;
 
   .tierIndex {
@@ -400,9 +395,9 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
   top: 16px;
   display: flex;
   flex-direction: column;
-  padding: 20px;
-  border: 1px solid var(--border-color);
-  border-radius: 14px;
+  padding: 22px 24px;
+  border: 0;
+  border-radius: var(--radius-card, 18px);
   background: var(--bg-primary);
 
   @media (max-width: $layout-stack) {
@@ -419,8 +414,8 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 
 .policyTitle {
   margin: 0;
-  font-size: 15px;
-  font-weight: 650;
+  font-size: 17px;
+  font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--text-primary);
 }
@@ -429,9 +424,9 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 .policyHint {
   margin: 0;
   text-wrap: pretty;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 /* Sections are separated by hairlines instead of extra boxes. */
@@ -453,10 +448,9 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 
 .policyLabel {
   margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--text-tertiary);
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--text-secondary);
 }
 
 /* Vertical segmented control: a recessed track with one raised selection. */
@@ -465,8 +459,8 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
   flex-direction: column;
   gap: 2px;
   padding: 3px;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  border-radius: var(--radius-control, 11px);
+  background: var(--surface-well, var(--bg-tertiary));
 }
 
 .strategyOption,
@@ -477,8 +471,9 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
   gap: 10px;
   height: 34px;
   padding: 0 10px;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-chip, 9px);
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
   transition:
@@ -492,16 +487,13 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 1px;
   }
 }
 
 .strategyOptionActive {
-  background: var(--floating-surface);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--text-primary) 6%, transparent),
-    0 1px 2px color-mix(in srgb, #000 8%, transparent);
+  background: var(--surface-selected, var(--bg-tertiary));
   color: var(--text-primary);
   font-weight: 600;
 }
@@ -527,8 +519,8 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 }
 
 .policyRowLabel {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -541,13 +533,12 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
   input {
     flex-shrink: 0;
     width: 60px;
-    height: 32px;
+    height: 34px;
     padding: 0 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background: var(--bg-secondary);
-    font-family: $font-mono;
-    font-size: 13px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-chip, 9px);
+    background: var(--surface-well, var(--bg-secondary));
+    font-size: 14px;
     font-variant-numeric: tabular-nums;
     color: var(--text-primary);
     text-align: center;
@@ -561,7 +552,7 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
     }
 
     &:focus-visible {
-      outline: 2px solid var(--primary-color);
+      outline: 2px solid var(--text-primary);
       outline-offset: 1px;
     }
   }
@@ -584,10 +575,10 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 
 .dialogNotice {
   margin: 0 0 12px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: var(--bg-tertiary);
-  font-size: 12.5px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--surface-well, var(--bg-tertiary));
+  font-size: 13px;
   color: var(--text-secondary);
 }
 
@@ -605,18 +596,18 @@ $label-x: $tier-pad + 1px + $index-size + 10px; // where tier names begin
 
   input {
     width: 110px;
-    height: 34px;
+    height: 36px;
     padding: 0 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background: var(--bg-secondary);
+    border: 1px solid transparent;
+    border-radius: var(--radius-control, 11px);
+    background: var(--surface-well, var(--bg-secondary));
     font-family: $font-mono;
     font-size: 13px;
     color: var(--text-primary);
     text-align: right;
 
     &:focus-visible {
-      outline: 2px solid var(--primary-color);
+      outline: 2px solid var(--text-primary);
       outline-offset: 1px;
     }
   }

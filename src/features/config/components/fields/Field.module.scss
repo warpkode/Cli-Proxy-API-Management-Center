@@ -13,20 +13,19 @@
 
   :global(.form-group > label) {
     color: var(--text-secondary);
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
+    font-size: 13px;
+    font-weight: 500;
   }
 
   /* 设置行与区块编辑器里的输入框同一副几何：36px 高、8px 圆角、纸色底。 */
   :global(.input) {
     min-height: 36px;
-    padding: 7px 11px;
-    border-radius: 8px;
-    background: var(--bg-secondary);
-    border-color: var(--border-color);
+    padding: 7px 12px;
+    border-radius: var(--radius-control, 11px);
+    background: var(--surface-well, var(--bg-secondary));
+    border-color: transparent;
     box-shadow: none;
-    font-size: 13.5px;
+    font-size: 14px;
     transition:
       border-color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out),
       background-color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out),
@@ -34,9 +33,8 @@
   }
 
   :global(.input:focus) {
-    background: var(--bg-primary);
-    border-color: var(--text-primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-primary) 12%, transparent);
+    border-color: var(--border-hover);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 10%, transparent);
   }
 
   :global(.input[aria-invalid='true']) {
@@ -54,12 +52,12 @@
 
   :global(.hint) {
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: 12.5px;
     line-height: 1.55;
   }
 
   :global(.error-box) {
-    border-radius: 8px;
+    border-radius: var(--radius-chip, 9px);
   }
 }
 
@@ -85,8 +83,8 @@
 .groupTitle {
   margin: 0;
   color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.3;
 }
 
@@ -94,17 +92,21 @@
   margin: 0;
   max-width: 80ch;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.55;
 }
 
+/* 无外框：行之间只留发丝线；负外边距让行文字与卡片内容左缘对齐。 */
 .list {
+  --setting-row-pad: 18px;
+
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--bg-secondary) 55%, transparent);
+  margin-inline: calc(-1 * var(--setting-row-pad));
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   /* 裁掉分隔线越界的部分 + 圆角；下拉菜单走 portal，不受影响。 */
   overflow: hidden;
 }
@@ -126,7 +128,7 @@
   gap: 10px 24px;
   min-width: 0;
   min-height: 64px;
-  padding: 14px 18px;
+  padding: 14px var(--setting-row-pad, 18px);
   box-sizing: border-box;
   /* 发丝分隔线：向右、向下各投 1px，越出列表的部分被 overflow 裁掉，只剩行间与列间的线。 */
   box-shadow:
@@ -162,7 +164,7 @@
 /* 自带标题区的区块单元格（API 密钥等）。 */
 .rowCell {
   display: block;
-  padding: 16px 18px;
+  padding: 16px var(--setting-row-pad, 18px);
 }
 
 .rowCopy {
@@ -174,8 +176,8 @@
 
 .rowLabel {
   color: var(--text-primary);
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -188,7 +190,7 @@
 .rowDescription {
   max-width: 72ch;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -219,17 +221,17 @@
 /* 下拉触发器对齐输入框几何（Select 自带 40px + 投影，这里收成同一套）。 */
 .selectControl > button[aria-haspopup='listbox'] {
   height: 36px;
-  padding: 0 11px;
-  border-radius: 8px;
-  background: var(--bg-secondary);
+  padding: 0 12px;
+  border-radius: var(--radius-control, 11px);
+  background: var(--surface-well, var(--bg-secondary));
   box-shadow: none;
-  font-size: 13.5px;
+  font-size: 14px;
   transition: border-color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out);
 
   &:focus-visible,
   &[aria-expanded='true'] {
-    border-color: var(--text-primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-primary) 12%, transparent);
+    border-color: var(--border-hover);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 10%, transparent);
   }
 
   &[aria-invalid='true'] {
@@ -256,20 +258,24 @@
   align-items: center;
   height: 22px;
   padding: 0 7px;
-  border: 1px solid var(--border-color);
+  border: 0;
   border-radius: 6px;
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
   pointer-events: none;
 }
 
 /* 窄组（手机、深层折叠）：输入行改为上下堆叠，开关始终留在右侧。 */
 @container setting-list (max-width: 520px) {
+  .list {
+    --setting-row-pad: 14px;
+  }
+
   .row {
-    padding: 12px 14px;
+    padding: 12px var(--setting-row-pad, 14px);
   }
 
   .row:not(.rowToggle) {
@@ -278,7 +284,7 @@
   }
 
   .rowCell {
-    padding: 14px;
+    padding: 14px var(--setting-row-pad, 14px);
   }
 }
 
@@ -289,12 +295,12 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 1px 5px;
-  border: 1px solid var(--amber-30);
-  border-radius: 5px;
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 6px;
   background: var(--amber-10);
   color: var(--amber-text);
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
   vertical-align: baseline;
   transition: background-color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out);
@@ -376,14 +382,13 @@
 
 .fieldLabel {
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .fieldHint {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 12.5px;
   line-height: 1.55;
 }
 

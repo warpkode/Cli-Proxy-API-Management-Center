@@ -6,10 +6,10 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 2px;
-  border-radius: $radius-full;
-  border: 1px solid var(--border-color);
-  background: var(--bg-tertiary);
+  padding: 3px;
+  border-radius: var(--radius-control, 11px);
+  border: 0;
+  background: var(--surface-well, var(--bg-tertiary));
   flex-shrink: 0;
 }
 
@@ -17,10 +17,10 @@
   border: 0;
   background: none;
   cursor: pointer;
-  padding: 5px 12px;
-  border-radius: $radius-full;
-  font-size: 12px;
-  font-weight: 550;
+  padding: 6px 12px;
+  border-radius: var(--radius-chip, 9px);
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1.3;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -40,7 +40,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: -1px;
   }
 }
@@ -53,11 +53,8 @@
 
 .segmentActive {
   color: var(--text-primary);
-  font-weight: 650;
-  background: var(--floating-surface, var(--bg-primary));
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.12),
-    0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+  background: var(--surface-selected, var(--bg-primary));
 
   /* 整体禁用（保存/加载中）时激活段仍保持完整对比度 —— 当前模式本身是有效信息 */
   &:disabled {

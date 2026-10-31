@@ -4,11 +4,14 @@
  * 总预算 360ms，在头部 reveal 之后（基准延迟 0.35s）起播。
  * ============================================================ */
 
+/* 设计语言收敛：只保留一条安静的小色条，不再占据整行高度 */
 .pulse {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 10px;
-  height: 34px;
+  height: 6px;
+  max-width: 420px;
+  margin-top: -6px;
   pointer-events: none;
   user-select: none;
 }
@@ -20,17 +23,13 @@
   flex: 1;
   min-width: 0;
   height: 100%;
-  /* 基线 + 两端渐隐：与 LiveWire 的水平 mask 同语汇 */
-  padding-bottom: 3px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 85%, transparent);
-  mask-image: linear-gradient(to right, transparent, #000 2%, #000 98%, transparent);
 }
 
 .bar {
   flex: 1 1 0;
   min-width: 2px;
-  max-width: 14px;
-  border-radius: 2px 2px 1px 1px;
+  max-width: 22px;
+  border-radius: 3px;
   transform-origin: bottom;
   animation: pulse-bar-in 0.45s var(--ease-out-strong, ease-out) both;
   animation-delay: calc(0.35s + var(--bar-delay, 0s));
@@ -42,37 +41,36 @@
   }
 }
 
-/* 高度编码状态（色盲冗余通道） */
+/* 颜色编码状态；头部 meta 行承载等价文字信息 */
 .barLive {
   height: 100%;
   background: var(--viz-success);
 }
 
 .barIdle {
-  height: 42%;
-  background: color-mix(in srgb, var(--text-quaternary) 55%, transparent);
+  height: 100%;
+  background: var(--surface-selected, var(--bg-hover));
 }
 
 .barWarning {
-  height: 72%;
-  background: var(--amber-color);
+  height: 100%;
+  background: var(--accent-amber, var(--amber-color));
 }
 
 .barProblem {
-  height: 58%;
-  background: var(--viz-failure);
+  height: 100%;
+  background: var(--accent-red, var(--viz-failure));
 }
 
 .barDisabled {
   opacity: 0.32;
-  height: 30%;
+  height: 100%;
 }
 
 .overflow {
   flex-shrink: 0;
-  font-family: $font-mono;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: var(--text-tertiary);
   line-height: 1;
@@ -83,9 +81,8 @@
 .idleLine {
   flex: 1;
   height: 0;
-  border-bottom: 2px dashed var(--text-quaternary);
-  opacity: 0.6;
-  margin-bottom: 6px;
+  border-bottom: 2px dashed var(--border-primary);
+  margin-bottom: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -3,16 +3,18 @@
 }
 
 .pageTitle {
-  font-size: 28px;
-  font-weight: 700;
+  font-size: var(--page-title-size, 24px);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
-  margin: 0 0 $spacing-xl 0;
+  margin: 0 0 18px 0;
 }
 
 .content {
   display: flex;
   flex-direction: column;
-  gap: $spacing-xl;
+  gap: 14px;
 }
 
 .aboutCard {
@@ -21,31 +23,26 @@
 
 .aboutHeader {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
   width: 100%;
-  gap: $spacing-md;
-  padding: $spacing-lg 0 $spacing-xl;
+  gap: 12px;
+  padding: 0 0 18px;
 }
 
 .aboutLogo {
-  width: 108px;
-  height: 108px;
-  border-radius: 26px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   object-fit: cover;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+  flex-shrink: 0;
 }
 
 .aboutTitle {
-  width: min(100%, 920px);
-  font-size: clamp(28px, 4.2vw, 44px);
-  font-weight: 800;
-  line-height: 1.12;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
   color: var(--text-primary);
-  letter-spacing: -0.02em;
-  text-align: center;
-  text-wrap: balance;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -53,7 +50,7 @@
 .aboutInfoGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: $spacing-md;
+  gap: 10px;
 
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
@@ -64,48 +61,44 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 120px;
-  padding: $spacing-md $spacing-lg;
-  border-radius: $radius-lg;
-  border: 1px solid var(--border-color);
-  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
+  min-height: 104px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 0;
+  background: var(--surface-well, var(--bg-secondary));
   text-align: left;
 }
 
 .tapTile {
-  border: 1px solid var(--border-color);
-  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
+  border: 0;
+  background: var(--surface-well, var(--bg-secondary));
   color: inherit;
-  padding: $spacing-md $spacing-lg;
+  padding: 16px 18px;
   cursor: pointer;
-  transition:
-    transform 0.18s ease,
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: background-color var(--dur-hover) var(--ease-out-strong);
 
   &:hover {
-    transform: translateY(-1px);
-    border-color: var(--primary-color);
-    box-shadow: 0 8px 18px rgba($primary-color, 0.18);
+    background: var(--bg-hover);
   }
 
-  &:active {
-    transform: translateY(0);
+  &:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
   }
 }
 
 .tileLabel {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 400;
   color: var(--text-secondary);
 }
 
 .tileHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: $spacing-sm;
-  min-height: 40px;
+  min-height: 28px;
 }
 
 .tileAction {
@@ -115,15 +108,19 @@
 }
 
 .tileValue {
+  margin-top: auto;
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
   line-height: 1.25;
   word-break: break-word;
+  font-variant-numeric: tabular-nums;
 }
 
 .tileSub {
-  font-size: 12px;
+  font-family: $font-mono;
+  font-size: 12.5px;
   color: var(--text-tertiary);
   line-height: 1.4;
 }
@@ -144,7 +141,7 @@
 .sectionDescription {
   font-size: 14px;
   color: var(--text-secondary);
-  margin: 0 0 $spacing-md 0;
+  margin: -6px 0 14px 0;
 }
 
 .clearLoginActions {
@@ -200,7 +197,7 @@
   display: flex;
   flex-wrap: wrap;
   flex: 0 0 100%;
-  gap: $spacing-sm;
+  gap: 6px;
 }
 
 .groupTitle {
@@ -219,18 +216,17 @@
   display: inline-flex;
   align-items: center;
   gap: $spacing-xs;
-  padding: 4px 10px;
-  border-radius: $radius-full;
-  border: 1px solid var(--border-color);
-  background-color: var(--bg-secondary);
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
+  padding: 3px 9px;
+  border-radius: 7px;
+  border: 0;
+  background-color: var(--bg-primary);
+  font-family: $font-mono;
+  font-size: 12.5px;
 }
 
 .modelName {
-  color: var(--text-primary);
-  font-weight: 600;
+  color: var(--text-secondary);
+  font-weight: 400;
 }
 
 .modelAlias {
@@ -278,24 +274,22 @@
 .linkCard {
   display: flex;
   align-items: center;
-  gap: $spacing-md;
-  padding: $spacing-md $spacing-lg;
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: $radius-lg;
+  gap: 14px;
+  padding: 14px 16px;
+  background-color: var(--surface-well, var(--bg-secondary));
+  border: 0;
+  border-radius: 14px;
   text-decoration: none;
   color: inherit;
-  transition: all 0.2s ease;
+  transition: background-color var(--dur-hover) var(--ease-out-strong);
 
   &:hover {
     background-color: var(--bg-hover);
-    border-color: var(--primary-color);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
 
-  &:active {
-    transform: translateY(0);
+  &:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
   }
 }
 
@@ -303,16 +297,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: $radius-md;
-  background-color: #24292f;
-  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background-color: var(--bg-primary);
+  color: var(--text-secondary);
   flex-shrink: 0;
 
-  &.github,
-  &.docs {
-    background-color: #24292f;
+  svg {
+    width: 18px;
+    height: 18px;
   }
 }
 
@@ -325,8 +319,8 @@
   display: flex;
   align-items: center;
   gap: $spacing-xs;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14.5px;
+  font-weight: 500;
   color: var(--text-primary);
   margin-bottom: 2px;
 
@@ -345,27 +339,7 @@
 }
 
 @media (max-width: 768px) {
-  .aboutLogo {
-    width: 92px;
-    height: 92px;
-    border-radius: 22px;
-  }
-
   .aboutTitle {
-    width: min(100%, 24ch);
-    font-size: clamp(22px, 6.6vw, 34px);
-    font-weight: 700;
-    line-height: 1.18;
-    letter-spacing: -0.012em;
-  }
-}
-
-@media (max-width: 520px) {
-  .aboutTitle {
-    width: min(100%, 19ch);
-    font-size: clamp(20px, 7.2vw, 28px);
-    font-weight: 600;
-    line-height: 1.22;
-    letter-spacing: -0.006em;
+    font-size: 16px;
   }
 }

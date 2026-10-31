@@ -1281,3 +1281,265 @@
   background: var(--failure-badge-bg);
   color: var(--failure-badge-text);
 }
+
+/* ============================================================
+ * Fork design language: overrides appended (same selectors, later in the
+ * cascade) so upstream edits above merge cleanly. Wells for inputs and nested
+ * panels, 17px/600 section headers, flat chips, white primary footer action.
+ * ============================================================ */
+
+.sectionTitle,
+.quickStartForm .sectionTitle {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.sectionDesc,
+.quickStartForm .sectionDesc {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+}
+
+.label,
+.quickStartForm .label {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.labelHint,
+.quickStartForm .labelHint {
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+
+.input,
+.textarea,
+.discoverySearch {
+  border: 1px solid transparent;
+  border-radius: var(--radius-control, 11px);
+  background: var(--surface-well);
+
+  &:hover:not(:disabled):not(:focus) {
+    border-color: var(--border-primary);
+  }
+
+  &:focus {
+    border-color: var(--border-hover);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 10%, transparent);
+  }
+}
+
+.input {
+  height: 38px;
+  font-size: 14px;
+}
+
+.checkboxBox {
+  border-radius: 5px;
+  border-color: var(--border-primary);
+  background: var(--surface-well);
+
+  &:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+  }
+}
+
+.errorBox,
+.connectivityError {
+  border: 0;
+  border-radius: var(--radius-control, 11px);
+  background: var(--bg-error-light);
+  color: var(--warning-text);
+}
+
+.dt {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+/* 嵌套面板：well 底、无描边 */
+.entryCard,
+.sponsorProtocolCard,
+.discoveryPanel,
+.modelEntryDetails,
+.apiKeyEntryCard {
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: var(--surface-well);
+}
+
+/* well 内的输入框再浮一层，用卡片底色区分 */
+.entryCard .input,
+.entryCard .textarea,
+.discoveryPanel .discoverySearch,
+.modelEntryDetails .input,
+.modelEntryDetails .textarea {
+  background: var(--bg-primary);
+}
+
+.entryCardHeader {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.entryCardIconBtn {
+  border-radius: var(--radius-chip, 9px);
+
+  &:hover {
+    background: var(--surface-selected);
+  }
+}
+
+.sponsorUrlOption {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--surface-well);
+
+  &:hover {
+    border-color: var(--border-primary);
+  }
+}
+
+.sponsorUrlOptionActive {
+  border-color: var(--border-hover);
+  background: var(--surface-selected);
+}
+
+.sponsorProtocolName,
+.quickStartForm .sponsorProtocolName {
+  font-weight: 500;
+}
+
+.sponsorUsageResult {
+  border: 0;
+  border-radius: var(--radius-control, 11px);
+  background: var(--success-badge-bg);
+}
+
+.sponsorUsageResultWarning {
+  background: var(--warning-bg);
+}
+
+.connectivityBtn {
+  border: 1px solid transparent;
+  border-radius: var(--radius-chip, 9px);
+  background: var(--bg-tertiary);
+
+  &:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--bg-hover);
+  }
+}
+
+.connectivityBtnGhost {
+  border-radius: var(--radius-chip, 9px);
+}
+
+.discoveryEmpty {
+  border: 0;
+  border-radius: 12px;
+  background: var(--bg-primary);
+}
+
+.discoveryList {
+  border: 0;
+  border-radius: 12px;
+  background: var(--bg-primary);
+}
+
+.discoveryItemExisting {
+  background: var(--surface-well);
+}
+
+.discoveryAddedTag,
+.entryBadge {
+  border: 0;
+  border-radius: 7px;
+  background: var(--surface-selected);
+}
+
+.discoveryApplyBtn {
+  border-radius: var(--radius-chip, 9px);
+}
+
+.thinkingLevelOption {
+  border-color: transparent;
+  border-radius: 12px;
+  background: var(--surface-well);
+}
+
+.thinkingLevelOptionSelected {
+  border-color: var(--border-hover);
+  background: var(--surface-selected);
+}
+
+.showMoreBtn,
+.addBtn {
+  border: 1px solid transparent;
+  border-radius: var(--radius-control, 11px);
+  background: var(--bg-tertiary);
+
+  &:hover {
+    border-color: transparent;
+    background: var(--bg-hover);
+  }
+}
+
+.removeBtn {
+  border-radius: var(--radius-chip, 9px);
+}
+
+.footerBtn,
+.quickStartForm .footerBtn {
+  height: 38px;
+  padding: 0 15px;
+  border-radius: var(--radius-control, 11px);
+  font-size: 14px;
+  font-weight: 500;
+
+  &:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+  }
+}
+
+.footerBtnOutline {
+  border-color: transparent;
+  background: var(--bg-tertiary);
+
+  &:hover:not(:disabled) {
+    background: var(--bg-hover);
+  }
+}
+
+.apiKeyEntriesLabel {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.apiKeyEntryKey {
+  font-family: $font-mono;
+  font-weight: 500;
+}
+
+.apiKeyEntryStat {
+  border-radius: 7px;
+  font-weight: 500;
+}
+
+.quickStartForm {
+  .sponsorGroupTitle strong,
+  details summary {
+    font-weight: 500;
+  }
+
+  .connectivityBtn,
+  .discoveryApplyBtn,
+  .addBtn,
+  .removeBtn {
+    font-weight: 500;
+  }
+}

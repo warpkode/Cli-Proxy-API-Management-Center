@@ -1,7 +1,7 @@
 .section {
   border-block: 1px solid var(--border-color);
-  color: var(--warning-text);
-  font-size: 12px;
+  color: var(--amber-text, var(--warning-text));
+  font-size: 13px;
   line-height: 1.5;
 }
 
@@ -13,14 +13,14 @@
   padding-block: 8px;
   cursor: pointer;
   list-style: none;
-  border-radius: 4px;
+  border-radius: 8px;
 
   &::-webkit-details-marker {
     display: none;
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 3px;
   }
 }
@@ -36,7 +36,7 @@
 }
 
 .scope {
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .next,
@@ -46,7 +46,7 @@
 
 .next {
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12.5px;
 }
 
 .chevron {
@@ -84,7 +84,7 @@
 .model {
   min-width: 0;
   overflow-wrap: anywhere;
-  font-weight: 550;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -106,7 +106,7 @@
 .note,
 .unknown {
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: 12.5px;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -139,6 +139,6 @@
 
 @media (hover: hover) and (pointer: fine) {
   .summary:hover {
-    background: var(--bg-secondary);
+    background: color-mix(in srgb, var(--text-primary) 3%, transparent);
   }
 }

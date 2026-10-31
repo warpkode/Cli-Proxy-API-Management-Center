@@ -70,8 +70,8 @@
 
 .blockLabel {
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 500;
   line-height: 1.4;
 }
 
@@ -82,12 +82,12 @@
 }
 
 .emptyState {
-  border: 1px dashed var(--border-color);
-  border-radius: 10px;
+  border: 0;
+  border-radius: 12px;
   padding: 16px;
   color: var(--text-secondary);
   text-align: center;
-  background: transparent;
+  background: var(--surface-well, transparent);
 }
 
 /* ---------- 规则卡 ---------- */
@@ -96,10 +96,10 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--bg-secondary) 64%, transparent);
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-well, var(--bg-secondary));
 }
 
 .ruleCardHeader {
@@ -113,7 +113,7 @@
 .ruleCardTitle {
   color: var(--text-primary);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.25;
 }
 
@@ -157,14 +157,14 @@
 
 .apiKeysTitle {
   color: var(--text-primary);
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1.4;
 }
 
 .apiKeysHint {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
@@ -182,16 +182,15 @@
   /* 序号 / 名称 / 掩码按文字基线对齐（三种字号混排），操作组整体居中。 */
   align-items: baseline;
   gap: 14px;
-  min-height: 48px;
-  padding: 6px 0;
+  min-height: 46px;
+  padding: 5px 0;
   border-top: 1px solid var(--border-color);
 }
 
 .apiKeyIndex {
   min-width: 26px;
   color: var(--text-tertiary);
-  font-family: $font-mono;
-  font-size: 11.5px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -205,8 +204,8 @@
 .apiKeyName {
   overflow: hidden;
   color: var(--text-primary);
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -224,13 +223,14 @@
   display: flex;
   align-self: center;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 /* 行内操作是次要信息：两套主题都用次级文字色（压过深色主题下 ghost 按钮的纯白）。
    删除平时与其他操作同色，悬停 / 聚焦才亮出危险色——破坏性动作不该是行里最响的元素。 */
 .apiKeyRow .apiKeyActions :global(.btn.btn-ghost) {
   color: var(--text-secondary);
+  background: var(--bg-tertiary);
 
   &:focus-visible {
     color: var(--text-primary);
@@ -245,6 +245,7 @@
 @media (hover: hover) and (pointer: fine) {
   .apiKeyRow .apiKeyActions :global(.btn.btn-ghost):hover {
     color: var(--text-primary);
+    background: var(--bg-hover);
   }
 
   .apiKeyRow .apiKeyActions :global(.btn.btn-ghost).apiKeyDelete:hover {
@@ -345,10 +346,10 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--bg-secondary) 42%, transparent);
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-well, var(--bg-secondary));
 }
 
 .storeAuthRuleHeader {
@@ -362,8 +363,8 @@
     min-width: 0;
     overflow: hidden;
     color: var(--text-primary);
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 14px;
+    font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -387,8 +388,8 @@
 
   > span {
     color: var(--text-secondary);
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 500;
   }
 }
 
@@ -399,8 +400,8 @@
 
   > span {
     color: var(--text-secondary);
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 500;
   }
 
   small {
@@ -422,8 +423,8 @@
   gap: 7px;
   min-height: 28px;
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 400;
   line-height: 1.4;
 
   input {

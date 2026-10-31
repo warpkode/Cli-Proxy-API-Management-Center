@@ -2,18 +2,89 @@
  * Fork design language (warpkode): near-black canvas, flat borderless cards,
  * segmented controls, white primary actions. Loaded after themes.scss so it
  * only overrides tokens; upstream files keep their own values for easy merges.
+ *
+ * Structural overrides of shared global classes live in fork-components.scss.
  */
 
+// Shared, theme-independent tokens.
+:root {
+  --font-ui:
+    Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+  --radius-card: 18px;
+  --radius-control: 11px;
+  --radius-chip: 9px;
+  --radius-nav: 10px;
+  --card-padding: 22px 24px;
+  --page-title-size: 24px;
+  --display-number-size: 52px;
+}
+
+// Light (default `:root`) and white share one neutral light palette; "light" sits a
+// touch greyer so the two theme cards still read differently in the picker.
 :root,
 [data-theme='white'] {
+  --bg-secondary: #f4f4f3;
+  --bg-primary: #ffffff;
+  --bg-tertiary: #ececeb;
+  --bg-hover: #e4e4e3;
+  --bg-quinary: #f7f7f6;
+  --bg-error-light: rgba(208, 69, 58, 0.08);
+  --floating-surface: #ffffff;
+  --floating-shadow: 0 16px 40px rgba(17, 17, 17, 0.12), 0 2px 6px rgba(17, 17, 17, 0.06);
+
+  --text-primary: #111111;
+  --text-secondary: #555555;
+  // #737373 keeps 4.5:1 on cards, wells and the page.
+  --text-tertiary: #737373;
+  --text-quaternary: #a3a3a3;
+  --text-muted: var(--text-tertiary);
+
+  --border-color: #ececec;
+  --border-secondary: var(--border-color);
+  --border-primary: #e0e0df;
+  --border-hover: #d4d4d3;
+
+  --primary-color: #111111;
+  --primary-hover: #2a2a2a;
+  --primary-active: #000000;
+  --primary-contrast: #ffffff;
+
+  --success-color: #15935f;
+  --quota-medium-color: #b7791f;
+  --warning-color: #d0453a;
+  --error-color: #d0453a;
+  --warning-bg: rgba(208, 69, 58, 0.08);
+  --warning-border: rgba(208, 69, 58, 0.24);
+  --warning-text: #b3372d;
+
+  --success-badge-bg: rgba(21, 147, 95, 0.1);
+  --success-badge-text: #0f6e47;
+  --success-badge-border: transparent;
+  --failure-badge-bg: rgba(208, 69, 58, 0.1);
+  --failure-badge-text: #b3372d;
+  --failure-badge-border: transparent;
+  --count-badge-bg: #ececeb;
+  --count-badge-text: #555555;
+
+  --shadow: none;
+  --shadow-lg: 0 16px 40px rgba(17, 17, 17, 0.12);
+
+  --amber-color: #b7791f;
+  --amber-text: #8a5a12;
+
   --surface-well: #f2f2f1;
   --surface-selected: #e4e4e3;
+  --surface-hairline: #ececec;
   --brand-claude: #c8603f;
   --brand-codex: #3f6fd9;
   --accent-amber: #b7791f;
   --accent-red: #d0453a;
-  --radius-card: 18px;
-  --radius-control: 11px;
+}
+
+[data-theme='white'] {
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #f0f0ef;
 }
 
 [data-theme='dark'] {
@@ -22,15 +93,20 @@
   --bg-tertiary: #1a1a1a;
   --bg-hover: #222222;
   --bg-quinary: #101010;
+  --bg-error-light: rgba(239, 106, 95, 0.1);
   --floating-surface: #1c1c1c;
   --floating-shadow: 0 16px 36px rgba(0, 0, 0, 0.55);
 
   --text-primary: #f5f5f4;
   --text-secondary: #a3a3a3;
-  --text-tertiary: #6b6b6b;
-  --text-quaternary: #4a4a4a;
+  // Mockup ink3 is #6b6b6b; it falls to ~3.5:1 on cards, so body-size muted text uses
+  // #808080 (≥4.5:1 on page, card and well). #6b6b6b stays for decorative ink.
+  --text-tertiary: #808080;
+  --text-quaternary: #6b6b6b;
+  --text-muted: var(--text-tertiary);
 
   --border-color: #1f1f1f;
+  --border-secondary: var(--border-color);
   --border-primary: #2a2a2a;
   --border-hover: #343434;
 
@@ -39,12 +115,48 @@
   --primary-active: #e2e2e1;
   --primary-contrast: #0b0b0b;
 
+  --success-color: #3fbf86;
+  --quota-medium-color: #f0b44c;
+  --warning-color: #ef6a5f;
+  --error-color: #ef6a5f;
+  --warning-bg: rgba(239, 106, 95, 0.1);
+  --warning-border: rgba(239, 106, 95, 0.22);
+  --warning-text: #f39a91;
+
+  --success-badge-bg: rgba(63, 191, 134, 0.12);
+  --success-badge-text: #6fd3a5;
+  --success-badge-border: transparent;
+  --failure-badge-bg: rgba(239, 106, 95, 0.12);
+  --failure-badge-text: #f39a91;
+  --failure-badge-border: transparent;
+  --count-badge-bg: #1f1f1f;
+  --count-badge-text: #a3a3a3;
+
+  --shadow: none;
+  --shadow-lg: 0 16px 36px rgba(0, 0, 0, 0.55);
+
+  --amber-color: #f0b44c;
+  --amber-text: #f5c875;
+
+  --glass-border: transparent;
+
   --surface-well: #181818;
   --surface-selected: #262626;
+  --surface-hairline: #1f1f1f;
   --brand-claude: #e8846b;
   --brand-codex: #7fa6f6;
   --accent-amber: #f0b44c;
   --accent-red: #ef6a5f;
   --radius-card: 18px;
   --radius-control: 11px;
+}
+
+// Flat chrome: no frosted glass anywhere.
+:root,
+[data-theme='white'],
+[data-theme='dark'] {
+  --glass-backdrop-filter: none;
+  --glass-filter: none;
+  --glass-bg: var(--bg-primary);
+  --glass-bg-secondary: var(--bg-secondary);
 }

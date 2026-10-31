@@ -11,11 +11,11 @@
   gap: 4px;
   min-width: 0;
   max-width: 100%;
-  padding: 4px 5px 4px 9px;
-  border-radius: $radius-full;
+  padding: 3px 5px 3px 9px;
+  border-radius: 8px;
   color: var(--text-primary);
   font-family: $font-mono;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -28,18 +28,18 @@
 .detail {
   flex-shrink: 0;
   color: var(--text-tertiary);
-  font-size: 10px;
+  font-size: 11.5px;
 }
 
-/* 显式勾选：实线 + primary 染色，读起来是「我选的」。 */
+/* 显式勾选：实底选中色，读起来是「我选的」。 */
 .exact {
-  border: 1px solid color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
-  background: color-mix(in srgb, var(--primary-color) 8%, var(--bg-primary));
+  border: 1px solid transparent;
+  background: var(--surface-selected, var(--bg-tertiary));
 }
 
 /* 规则派生：虚线 = 「不是逐个挑的，是某条规则算出来的」。 */
 .wildcard {
-  border: 1px dashed color-mix(in srgb, var(--primary-color) 38%, var(--border-color));
+  border: 1px dashed var(--border-hover);
   background: transparent;
   color: var(--text-secondary);
 }
@@ -74,7 +74,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 1px;
   }
 

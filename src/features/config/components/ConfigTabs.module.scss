@@ -4,8 +4,8 @@
 
 .tabs {
   display: flex;
-  align-items: stretch;
-  gap: 2px;
+  align-items: center;
+  gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
   min-width: 0;
@@ -25,27 +25,15 @@
   border: 0;
   background: none;
   cursor: pointer;
-  padding: 8px 12px 11px;
-  border-radius: 8px 8px 0 0;
-  font-size: 13px;
-  font-weight: 550;
+  padding: 8px 13px;
+  border-radius: var(--radius-control, 11px);
+  font-size: 14.5px;
+  font-weight: 400;
   color: var(--text-secondary);
   white-space: nowrap;
   transition:
     color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out),
     background-color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out);
-
-  &::after {
-    content: '';
-    position: absolute;
-    left: 10px;
-    right: 10px;
-    bottom: -1px;
-    height: 2px;
-    border-radius: $radius-full;
-    background: transparent;
-    transition: background-color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out);
-  }
 
   &:disabled {
     cursor: not-allowed;
@@ -57,7 +45,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: -2px;
   }
 }
@@ -65,17 +53,13 @@
 @media (hover: hover) and (pointer: fine) {
   .tab:hover:not(:disabled) {
     color: var(--text-primary);
-    background: color-mix(in srgb, var(--bg-tertiary) 55%, transparent);
+    background: var(--bg-primary);
   }
 }
 
 .tabActive {
   color: var(--text-primary);
-  font-weight: 650;
-
-  &::after {
-    background: var(--text-primary);
-  }
+  background: var(--bg-tertiary);
 
   /* 整体禁用（保存中）时激活 tab 仍保持完整对比度 */
   &:disabled {
@@ -98,15 +82,14 @@
 
 /* 校验错误徽章：mono 数字，失败色（数据墨水走 --viz-*） */
 .tabBadge {
-  font-family: $font-mono;
-  font-size: 10.5px;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   line-height: 1.6;
-  color: var(--viz-failure);
-  padding: 0 6px;
-  border-radius: $radius-full;
-  background: color-mix(in srgb, var(--viz-failure) 12%, transparent);
+  color: var(--error-color);
+  padding: 0 7px;
+  border-radius: 7px;
+  background: var(--bg-error-light);
 }
 
 /* 待保存脏点：6px 琥珀 */
@@ -114,13 +97,12 @@
   width: 6px;
   height: 6px;
   border-radius: $radius-full;
-  background: var(--amber-color);
+  background: var(--accent-amber, var(--amber-color));
   flex-shrink: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tab,
-  .tab::after {
+  .tab {
     transition: none;
   }
 

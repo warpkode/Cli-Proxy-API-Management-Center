@@ -17,13 +17,13 @@
 }
 
 .error {
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--danger-color);
   background: var(--bg-error-light);
-  border: 1px solid var(--warning-border);
-  border-radius: 8px;
-  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  padding: 9px 12px;
   overflow-wrap: anywhere;
 }
 
@@ -34,12 +34,9 @@
 }
 
 .label {
-  font-family: $font-mono;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .textarea {
@@ -50,15 +47,15 @@
   font-size: 12px;
   line-height: 1.55;
   color: var(--text-secondary);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 10px 12px;
+  background: var(--surface-well, var(--bg-secondary));
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 12px 14px;
 
   &:focus {
     outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px var(--primary-10);
+    border-color: var(--border-hover);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 10%, transparent);
   }
 }
 
@@ -74,10 +71,10 @@
   font-size: 12px;
   line-height: 1.55;
   color: var(--text-secondary);
-  background: var(--bg-secondary);
-  border: 1px dashed var(--border-hover);
-  border-radius: 10px;
-  padding: 10px 12px;
+  background: var(--surface-well, var(--bg-secondary));
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -89,16 +86,18 @@
 }
 
 .settingsLink {
-  color: var(--primary-color);
-  font-weight: 600;
-  text-decoration: none;
+  color: var(--text-primary);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--border-hover);
+  text-underline-offset: 3px;
 
   &:hover {
     text-decoration: underline;
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 2px;
     border-radius: 2px;
   }

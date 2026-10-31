@@ -8,7 +8,7 @@
 
 .label {
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -22,8 +22,8 @@
   min-height: 64px;
   padding: 12px 14px;
   border: 1px dashed var(--border-primary);
-  border-radius: 12px;
-  background: var(--bg-secondary);
+  border-radius: 14px;
+  background: var(--surface-well);
   text-align: left;
   transition:
     transform var(--dur-press, 160ms) var(--ease-out-strong, ease-out),
@@ -35,7 +35,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 2px;
   }
 
@@ -81,8 +81,8 @@
 }
 
 .dropTitle {
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -106,9 +106,9 @@
   }
 
   :global(.input) {
-    height: 36px;
-    padding: 0 12px;
-    border-radius: 10px;
+    height: 38px;
+    padding: 0 13px;
+    border-radius: var(--radius-control, 11px);
     font-family: $font-mono;
     font-size: 12.5px;
   }
@@ -128,8 +128,8 @@
   width: 100%;
   margin: 12px 0 0;
   border-radius: 12px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  border: 0;
+  background: var(--surface-well);
   text-align: left;
   overflow: hidden;
 }
