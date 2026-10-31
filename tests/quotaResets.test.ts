@@ -157,22 +157,22 @@ describe('reset scheduler commands', () => {
       body: { result: 'reset', state: resetsPayload() },
     });
     try {
-      const outcome = await quotaResetsApi.spend('grant_c3');
+      const outcome = await quotaResetsApi.spend(resets.grants[0]);
       expect(outcome.result).toBe('reset');
       expect(outcome.state?.grants).toHaveLength(4);
       const [request] = spy.mock.calls[0];
       expect(request).toMatchObject({
         method: 'POST',
         url: `${QUOTA_RESETS_SERVICE_ORIGIN}/spend`,
-        data: JSON.stringify({ grant: 'grant_c3' }),
+        data: JSON.stringify({ grant: 'grant_c3', account: 'c3' }),
       });
       expect(request.header?.Authorization).toBe('Bearer test-key');
       expect(request.authIndex).toBeUndefined();
 
-      await quotaResetsApi.setPolicy('credit_x1', 'off');
+      await quotaResetsApi.setPolicy(resets.grants[2], 'off');
       expect(spy.mock.calls[1][0]).toMatchObject({
         url: `${QUOTA_RESETS_SERVICE_ORIGIN}/policy`,
-        data: JSON.stringify({ grant: 'credit_x1', policy: 'off' }),
+        data: JSON.stringify({ grant: 'credit_x1', account: 'x1', policy: 'off' }),
       });
     } finally {
       spy.mockRestore();
@@ -212,18 +212,21 @@ describe('grants in the pool projection and on the page', () => {
   test('pending grants on the pool feed the projection', () => {
     expect(view.grants.pending.map((grant) => grant.id)).toEqual(['grant_c3', 'grant_c1']);
     // c3 is dry, so Claude accepts its grant ten minutes before expiry.
-    expect(view.grants.outcomes.grant_c3).toEqual({
+    expect(view.grants.outcomes['c3:grant_c3']).toEqual({
       kind: 'spent',
       atMs: NOW + 6 * HOUR - 600_000,
       amount: 100,
     });
     // c1 still has quota a day from now: refused, and its expiry stays on the chart.
-    expect(view.grants.outcomes.grant_c1).toMatchObject({ kind: 'unused', reason: 'not_limited' });
+    expect(view.grants.outcomes['c1:grant_c1']).toMatchObject({
+      kind: 'unused',
+      reason: 'not_limited',
+    });
     expect(view.grants.expiryMarkers).toEqual([
-      { t: NOW + DAY, grantId: 'grant_c1', accountId: 'c1' },
+      { t: NOW + DAY, grantKey: 'c1:grant_c1', accountId: 'c1' },
     ]);
     expect(view.remaining.projectedStepUps).toContainEqual(
-      expect.objectContaining({ kind: 'grant', grantId: 'grant_c3', amount: 100 })
+      expect.objectContaining({ kind: 'grant', grantId: 'c3:grant_c3', amount: 100 })
     );
   });
 

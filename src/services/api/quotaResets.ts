@@ -57,6 +57,10 @@ export interface ResetGrant {
   last: ResetAttempt | null;
 }
 
+/** Grant ids are only unique per account; this key is unique across the pool. */
+export const grantKey = (grant: Pick<ResetGrant, 'accountId' | 'id'>) =>
+  `${grant.accountId}:${grant.id}`;
+
 export interface ResetAccount {
   id: string;
   provider: string;
@@ -279,12 +283,14 @@ async function callService(path: string, body: Record<string, unknown> | null) {
 
 export const quotaResetsApi = {
   state: async () => normalizeQuotaResetsState(await callService('/state', null)),
-  setPolicy: async (grantId: string, policy: ResetPolicy | 'default') =>
-    normalizeQuotaResetsState(await callService('/policy', { grant: grantId, policy })),
+  setPolicy: async (grant: ResetGrant, policy: ResetPolicy | 'default') =>
+    normalizeQuotaResetsState(
+      await callService('/policy', { grant: grant.id, account: grant.accountId, policy })
+    ),
   setDefaultPolicy: async (policy: ResetPolicy) =>
     normalizeQuotaResetsState(await callService('/policy', { default_policy: policy })),
-  spend: async (grantId: string): Promise<SpendResult> => {
-    const payload = await callService('/spend', { grant: grantId });
+  spend: async (grant: ResetGrant): Promise<SpendResult> => {
+    const payload = await callService('/spend', { grant: grant.id, account: grant.accountId });
     return { result: text(payload.result), state: normalizeQuotaResetsState(payload.state) };
   },
   refresh: async () => normalizeQuotaResetsState(await callService('/refresh', {})),

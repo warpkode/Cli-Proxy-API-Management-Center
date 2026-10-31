@@ -12,6 +12,7 @@ import type { ResolvedTheme } from '@/types';
 import {
   QuotaResetsServiceError,
   RESET_POLICIES,
+  grantKey,
   quotaResetsApi,
   type QuotaResetsState,
   type ResetGrant,
@@ -109,7 +110,7 @@ export function ResetsCard(props: ResetsCardProps) {
   };
 
   const planLine = (grant: ResetGrant) => {
-    const outcome = outcomes[grant.id];
+    const outcome = outcomes[grantKey(grant)];
     const name = shortNameOf(grant.accountId);
     if (grant.policy === 'off') return t('quota_management.resets_plan_off');
     if (!outcome) return '';
@@ -152,7 +153,7 @@ export function ResetsCard(props: ResetsCardProps) {
 
   const changePolicy = (grant: ResetGrant, policy: ResetPolicy) => {
     if (policy === grant.policy) return;
-    void run(grant.id, async () => onState(await quotaResetsApi.setPolicy(grant.id, policy)));
+    void run(grantKey(grant), async () => onState(await quotaResetsApi.setPolicy(grant, policy)));
   };
 
   const changeDefault = (value: string) => {
@@ -174,8 +175,8 @@ export function ResetsCard(props: ResetsCardProps) {
       confirmText: t('quota_management.resets_use_now'),
       variant: 'primary',
       onConfirm: () =>
-        run(grant.id, async () => {
-          const { result, state } = await quotaResetsApi.spend(grant.id);
+        run(grantKey(grant), async () => {
+          const { result, state } = await quotaResetsApi.spend(grant);
           onState(state);
           if (SPENT_RESULTS.has(result)) {
             showNotification(t('quota_management.resets_spend_done', { name }), 'success');
@@ -272,7 +273,7 @@ export function ResetsCard(props: ResetsCardProps) {
             const disabled = !canAct || busy !== null;
             const plan = planLine(grant);
             return (
-              <li key={grant.id} className={styles.row}>
+              <li key={grantKey(grant)} className={styles.row}>
                 <div className={styles.what}>
                   <div className={styles.who}>
                     <span aria-hidden="true">{providerIcon(grant.provider)}</span>
@@ -359,7 +360,7 @@ export function ResetsCard(props: ResetsCardProps) {
                 ? grant.state
                 : 'failed';
             return (
-              <li key={grant.id}>
+              <li key={grantKey(grant)}>
                 <span aria-hidden="true">{providerIcon(grant.provider)}</span>
                 <span className={name.masked ? styles.masked : styles.name}>{name.text}</span>
                 <span>

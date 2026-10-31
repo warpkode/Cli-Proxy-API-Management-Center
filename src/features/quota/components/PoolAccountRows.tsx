@@ -4,7 +4,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import type { ResetGrant } from '@/services/api/quotaResets';
+import { grantKey, type ResetGrant } from '@/services/api/quotaResets';
 import { accountLabel, type PoolAccount } from '../pool/accounts';
 import { durationParts, formatInstant, formatPercent } from '../pool/format';
 import type { GrantOutcome } from '../pool/poolModel';
@@ -57,7 +57,7 @@ export function PoolAccountRows(props: PoolAccountRowsProps) {
   const plannedSpend = (key: string) =>
     grants
       .filter((grant) => grant.accountId === key)
-      .map((grant) => outcomes[grant.id])
+      .map((grant) => outcomes[grantKey(grant)])
       .filter(
         (outcome): outcome is Extract<GrantOutcome, { kind: 'spent' }> =>
           outcome?.kind === 'spent' && outcome.atMs > nowMs

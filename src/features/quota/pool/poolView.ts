@@ -3,7 +3,7 @@
  * card stays a layout component and the numbers are testable.
  */
 
-import type { ResetGrant } from '@/services/api/quotaResets';
+import { grantKey, type ResetGrant } from '@/services/api/quotaResets';
 import type { PoolAccount } from './accounts';
 import { toSimulationAccounts } from './accounts';
 import {
@@ -61,9 +61,10 @@ export interface PoolView {
   grants: {
     /** Unspent grants on this pool's members, soonest expiry first. */
     pending: ResetGrant[];
+    /** Projected outcome per grant, keyed by grantKey(). */
     outcomes: Record<string, GrantOutcome>;
     /** Expiry instants inside the range of grants the projection leaves unspent. */
-    expiryMarkers: { t: number; grantId: string; accountId: string }[];
+    expiryMarkers: { t: number; grantKey: string; accountId: string }[];
   };
 }
 
@@ -134,7 +135,7 @@ export function buildPoolView(input: PoolViewInput): PoolView {
   const pending = pendingGrants(input.grants ?? [], ids, nowMs);
   const leadMs = input.grantLeadMs ?? DEFAULT_GRANT_LEAD_MS;
   const simGrants: SimulationGrant[] = pending.map((grant) => ({
-    id: grant.id,
+    id: grantKey(grant),
     accountId: grant.accountId,
     expiresAtMs: grant.expiresAtMs,
     startsAtMs: grant.startsAtMs,
@@ -241,10 +242,10 @@ export function buildPoolView(input: PoolViewInput): PoolView {
       outcomes: simulation.grantOutcomes,
       expiryMarkers: pending.flatMap((grant) =>
         grant.expiresAtMs !== null &&
-        simulation.grantOutcomes[grant.id]?.kind !== 'spent' &&
+        simulation.grantOutcomes[grantKey(grant)]?.kind !== 'spent' &&
         grant.expiresAtMs >= range.startMs &&
         grant.expiresAtMs <= range.endMs
-          ? [{ t: grant.expiresAtMs, grantId: grant.id, accountId: grant.accountId }]
+          ? [{ t: grant.expiresAtMs, grantKey: grantKey(grant), accountId: grant.accountId }]
           : []
       ),
     },

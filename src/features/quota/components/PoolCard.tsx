@@ -8,7 +8,7 @@
 import { useId, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ResolvedTheme } from '@/types';
-import type { QuotaResetsState } from '@/services/api/quotaResets';
+import { grantKey, type QuotaResetsState } from '@/services/api/quotaResets';
 import { getAuthFileIcon, getTypeLabel } from '@/features/authFiles/constants';
 import { accountShortLabel, type PoolAccount } from '../pool/accounts';
 import {
@@ -123,7 +123,7 @@ export function PoolCard(props: PoolCardProps) {
 
   const pending = view.grants.pending;
   const nextAuto = pending
-    .map((grant) => view.grants.outcomes[grant.id])
+    .map((grant) => view.grants.outcomes[grantKey(grant)])
     .filter((outcome) => outcome?.kind === 'spent')
     .map((outcome) => outcome.atMs as number)
     .sort((left, right) => left - right)[0];
@@ -258,7 +258,7 @@ export function PoolCard(props: PoolCardProps) {
           stepNames={multi ? stepNames : undefined}
           expiryMarkers={view.grants.expiryMarkers.map((marker) => ({
             t: marker.t,
-            key: marker.grantId,
+            key: marker.grantKey,
           }))}
           emptyAtMs={summary.poolEmptyAtMs}
           maxGapMs={maxGapMs}
