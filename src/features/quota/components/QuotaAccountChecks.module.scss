@@ -1,0 +1,214 @@
+@use '../../../styles/mixins' as *;
+
+/* Live account checks: search + sort + explicit batch action above the card grid. */
+
+.collapsible,
+.section {
+  min-width: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.summary {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.hint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 1 340px;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+
+  &:focus-within {
+    border-color: var(--border-hover);
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+}
+
+.searchIcon {
+  position: absolute;
+  left: 11px;
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 42px 0 35px;
+  border: 0;
+  border-radius: inherit;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  appearance: none;
+
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
+
+  &::-webkit-search-cancel-button,
+  &::-webkit-search-decoration {
+    appearance: none;
+  }
+}
+
+.clearSearch {
+  position: absolute;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: -2px;
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+.sort {
+  flex: 0 0 auto;
+  min-width: 148px;
+  max-width: 100%;
+
+  button[aria-haspopup='listbox'] {
+    height: 36px;
+    border-color: transparent;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-secondary);
+
+    &:focus-visible,
+    &[aria-expanded='true'] {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+    }
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .clearSearch:hover,
+  .sort button[aria-haspopup='listbox']:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clearSearch:active {
+    transform: none;
+  }
+}
+
+@include mobile {
+  .search {
+    flex: 1 1 220px;
+    height: 40px;
+  }
+
+  .clearSearch {
+    width: 36px;
+    height: 36px;
+  }
+
+  .sort button[aria-haspopup='listbox'] {
+    height: 40px;
+  }
+}
+
+/* Card grid: 340px floor, same as the auth-files quota mode. */
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  align-items: stretch;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.pageInfo {
+  font-family: $font-mono;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}

@@ -12,7 +12,7 @@
   min-width: 0;
 }
 
-/* ---------- 工作区（tabs + 网格 + 分页） ---------- */
+/* ---------- 工作区（tabs + 控件 + 资源池 + 账号检查） ---------- */
 
 .workbench {
   display: flex;
@@ -36,142 +36,6 @@
   }
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  min-width: 0;
-}
-
-.search {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 0 1 340px;
-  min-width: 0;
-  height: 36px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-
-  &:focus-within {
-    border-color: var(--border-hover);
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
-  }
-}
-
-.searchIcon {
-  position: absolute;
-  left: 11px;
-  pointer-events: none;
-}
-
-.searchInput {
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-  padding: 0 42px 0 35px;
-  border: 0;
-  border-radius: inherit;
-  outline: none;
-  background: transparent;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 13px;
-  appearance: none;
-
-  &::placeholder {
-    color: var(--text-tertiary);
-  }
-
-  &::-webkit-search-cancel-button,
-  &::-webkit-search-decoration {
-    appearance: none;
-  }
-}
-
-.clearSearch {
-  position: absolute;
-  right: 2px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-
-  &:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: -2px;
-  }
-
-  &:active {
-    transform: scale(0.97);
-  }
-}
-
-.sort {
-  flex: 0 0 auto;
-  min-width: 148px;
-  max-width: 100%;
-
-  button[aria-haspopup='listbox'] {
-    height: 36px;
-    border-color: transparent;
-    border-radius: 10px;
-    background: transparent;
-    box-shadow: none;
-    color: var(--text-secondary);
-
-    &:focus-visible,
-    &[aria-expanded='true'] {
-      outline: 2px solid var(--primary-color);
-      outline-offset: 2px;
-      background: var(--bg-secondary);
-      color: var(--text-primary);
-    }
-  }
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .clearSearch:hover,
-  .sort button[aria-haspopup='listbox']:hover {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .clearSearch:active {
-    transform: none;
-  }
-}
-
-@include mobile {
-  .search {
-    flex: 1 1 220px;
-    height: 40px;
-  }
-
-  .clearSearch {
-    width: 36px;
-    height: 36px;
-  }
-
-  .sort button[aria-haspopup='listbox'] {
-    height: 40px;
-  }
-}
-
 .errorBanner {
   font-size: 12.5px;
   line-height: 1.5;
@@ -183,34 +47,44 @@
   overflow-wrap: anywhere;
 }
 
-/* ---------- 卡片网格 ----------
- * 列宽由 CSS 决定（不再用 JS 测量）：额度卡承载水位条，取 340px 下限，
- * 与认证文件页配额模式（.gridQuota）同一档。 */
-
-.grid {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
-  align-items: stretch;
+.pools {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
 }
 
-/* ---------- 分页 ---------- */
-
-.pagination {
+/* Where the numbers come from: hub caches only, never a provider query. */
+.sourceNote {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
   flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
-.pageInfo {
-  font-family: $font-mono;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
-  color: var(--text-tertiary);
-  white-space: nowrap;
+.sourceChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-quaternary);
+  }
+
+  &[data-state='ok']::before {
+    background: var(--viz-success);
+  }
+
+  &[data-state='error']::before {
+    background: var(--viz-failure);
+  }
 }
 
 @include mobile {

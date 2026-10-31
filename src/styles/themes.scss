@@ -84,6 +84,17 @@
   // 规则：翡翠绿只表达「活的流量」。
   --viz-success: #10b981;
   --viz-failure: #c65746;
+  // Categorical series (per-account lines), fixed order, never cycled. Validated on
+  // --bg-primary: adjacent CVD ΔE ≥ 9.1; slots 2–5 sit under 3:1, so any chart using
+  // them also ships a table view.
+  --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
+  --viz-series-3: #1baf7a;
+  --viz-series-4: #eda100;
+  --viz-series-5: #e87ba4;
+  --viz-series-6: #008300;
+  --viz-series-7: #6250d6;
+  --viz-series-8: #e34948;
 
   // 动效词汇表：内置 ease 太弱，交互反馈统一用强减速曲线。
   // 按压 160ms / 悬停 200ms，UI 动效不超过 300ms。
@@ -250,6 +261,15 @@
   // 因此深色单独降一档。三套主题均已通过对比度/色盲/亮度校验。
   --viz-success: #0fae78;
   --viz-failure: #cf4b3a;
+  // Same eight hues stepped for the dark card surface (all ≥ 3:1, CVD ΔE ≥ 8.4).
+  --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
+  --viz-series-3: #199e70;
+  --viz-series-4: #c98500;
+  --viz-series-5: #d55181;
+  --viz-series-6: #008300;
+  --viz-series-7: #9085e9;
+  --viz-series-8: #e66767;
 
   --plan-accent-text: var(--suite-champagne);
 }

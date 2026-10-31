@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { IconRefreshCw } from '@/components/ui/icons';
+import { IconEye, IconEyeOff, IconRefreshCw } from '@/components/ui/icons';
 import { useCountUp } from '@/hooks/motion';
 import styles from './QuotaHeader.module.scss';
 
@@ -9,21 +9,32 @@ export type QuotaHeaderProps = {
   attentionCount: number;
   refreshing: boolean;
   disableControls: boolean;
-  onRefreshAll: () => void;
+  showEmails: boolean;
+  onShowEmailsChange: (value: boolean) => void;
+  /** Reloads hub-cached data only; never queries providers. */
+  onRefresh: () => void;
 };
 
 /**
- * 额度页头部：标题领衔 + ▍mono 遥测 meta 行 + 墨色药丸「刷新全部」。
+ * 额度页头部：标题领衔 + ▍mono 遥测 meta 行 + 动作区。
  * 与凭证库头部同语汇（无 eyebrow —— ▍游标挂在 meta 行开头）。
  *
  * 入场：三处 `data-reveal` 交给页面壳的 useRevealGroup 统一编排
  * （标题 0ms → meta 70ms → 动作 140ms → tabs 210ms）。
  */
 export function QuotaHeader(props: QuotaHeaderProps) {
-  const { totalCount, loadedCount, attentionCount, refreshing, disableControls, onRefreshAll } =
-    props;
+  const {
+    totalCount,
+    loadedCount,
+    attentionCount,
+    refreshing,
+    disableControls,
+    showEmails,
+    onShowEmailsChange,
+    onRefresh,
+  } = props;
   const { t } = useTranslation();
-  // 批量结果陆续落地时，「已加载」是页面上唯一滚动的数字
+  // 数据陆续落地时，「已加载」是页面上唯一滚动的数字
   const displayLoadedCount = useCountUp(loadedCount);
 
   return (
@@ -57,12 +68,30 @@ export function QuotaHeader(props: QuotaHeaderProps) {
       <div className={styles.actions} data-reveal>
         <button
           type="button"
-          className={styles.primaryAction}
-          onClick={onRefreshAll}
-          disabled={disableControls || refreshing}
+          className={styles.secondaryAction}
+          aria-pressed={showEmails}
+          onClick={() => onShowEmailsChange(!showEmails)}
         >
-          <IconRefreshCw size={14} className={refreshing ? styles.spinning : undefined} />
-          {t('quota_management.refresh_all_credentials')}
+          {showEmails ? (
+            <IconEyeOff size={14} aria-hidden="true" />
+          ) : (
+            <IconEye size={14} aria-hidden="true" />
+          )}
+          {t('quota_management.show_emails')}
+        </button>
+        <button
+          type="button"
+          className={styles.primaryAction}
+          onClick={onRefresh}
+          disabled={disableControls || refreshing}
+          title={t('quota_management.refresh_hub_hint')}
+        >
+          <IconRefreshCw
+            size={14}
+            aria-hidden="true"
+            className={refreshing ? styles.spinning : undefined}
+          />
+          {t('quota_management.refresh_hub')}
         </button>
       </div>
     </header>
