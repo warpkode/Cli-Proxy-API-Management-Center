@@ -79,6 +79,8 @@
   --brand-claude: #c8603f;
   --brand-codex: #3f6fd9;
   --accent-amber: #b7791f;
+  // Amber as text: #8a5a12 keeps 4.5:1 on white cards; dark text uses the mark colour.
+  --accent-amber-text: #8a5a12;
   --accent-red: #d0453a;
 }
 
@@ -146,6 +148,7 @@
   --brand-claude: #e8846b;
   --brand-codex: #7fa6f6;
   --accent-amber: #f0b44c;
+  --accent-amber-text: #f0b44c;
   --accent-red: #ef6a5f;
   --radius-card: 18px;
   --radius-control: 11px;
