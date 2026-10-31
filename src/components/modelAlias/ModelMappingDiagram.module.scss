@@ -74,20 +74,19 @@
 }
 
 .columnHeader {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 400;
   color: var(--text-secondary);
-  text-transform: uppercase;
   margin-bottom: 8px;
   padding: 0 4px;
 }
 
 .item {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  background: var(--surface-well, var(--bg-primary));
+  border: 1px solid transparent;
+  border-radius: 10px;
   padding: 10px 14px;
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-primary);
   display: flex;
   align-items: center;
@@ -95,26 +94,23 @@
   width: 100%;
   max-width: 280px;
   position: relative;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
 
   &:hover {
-    border-color: var(--primary-color);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border-color: var(--border-hover);
     z-index: 10;
   }
 
   &.dropTarget {
-    background-color: var(--bg-secondary);
-    border-color: var(--primary-color);
-    border-width: 2px;
+    background-color: var(--surface-selected, var(--bg-secondary));
+    border-color: var(--text-secondary);
   }
 
   &.selected {
-    border-color: var(--primary-color);
-    background-color: var(--bg-secondary);
-    box-shadow: 0 0 0 2px rgba($primary-color, 0.18);
+    border-color: var(--border-hover);
+    background-color: var(--surface-selected, var(--bg-secondary));
   }
 }
 
@@ -127,8 +123,8 @@
   gap: 8px;
 
   .providerLabel {
-    font-weight: 600;
-    font-size: 13px;
+    font-weight: 500;
+    font-size: 13.5px;
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -143,8 +139,8 @@
     align-items: center;
     justify-content: center;
     border: none;
-    background: var(--bg-secondary);
-    border-radius: 4px;
+    background: var(--bg-primary);
+    border-radius: 7px;
     cursor: pointer;
     color: var(--text-secondary);
     transition:
@@ -152,7 +148,7 @@
       color 0.15s;
 
     &:hover {
-      background: var(--border-color);
+      background: var(--bg-hover);
       color: var(--text-primary);
     }
   }
@@ -217,10 +213,10 @@
 }
 
 .providerBadge {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--bg-secondary);
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 7px;
+  background: var(--bg-primary);
   color: var(--text-secondary);
   margin-right: 8px;
   font-weight: 500;
@@ -234,28 +230,29 @@
 }
 
 .itemCount {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-tertiary);
   margin-left: 8px;
-  background: var(--bg-secondary);
-  padding: 1px 6px;
-  border-radius: 10px;
+  background: var(--bg-primary);
+  padding: 1px 7px;
+  border-radius: 7px;
 }
 
 .contextMenu {
   position: fixed;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: var(--floating-surface);
+  border: 0;
+  border-radius: 12px;
+  box-shadow: var(--floating-shadow);
   z-index: 9999;
   min-width: 120px;
   overflow: hidden;
-  padding: 4px 0;
+  padding: 6px;
 
   .menuItem {
     padding: 8px 12px;
-    font-size: 13px;
+    border-radius: var(--radius-chip, 9px);
+    font-size: 14px;
     color: var(--text-primary);
     cursor: pointer;
     transition: background-color 0.1s;
@@ -264,7 +261,7 @@
     gap: 8px;
 
     &:hover {
-      background-color: var(--bg-secondary);
+      background-color: var(--bg-hover);
     }
 
     &.danger {
@@ -304,10 +301,10 @@
   grid-template-columns: minmax(200px, 1fr) auto;
   gap: $spacing-md;
   align-items: center;
-  padding: $spacing-sm $spacing-md;
-  border: 1px solid var(--border-color);
-  border-radius: $radius-md;
-  background: var(--bg-secondary);
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-well, var(--bg-secondary));
 
   @media (max-width: 768px) {
     grid-template-columns: 1fr;

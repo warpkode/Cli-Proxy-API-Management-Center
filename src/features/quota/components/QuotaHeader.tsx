@@ -16,11 +16,11 @@ export type QuotaHeaderProps = {
 };
 
 /**
- * 额度页头部：标题领衔 + ▍mono 遥测 meta 行 + 动作区。
- * 与凭证库头部同语汇（无 eyebrow —— ▍游标挂在 meta 行开头）。
+ * Quota page title row: title with a muted inline count, then the email toggle
+ * and the hub-only refresh as the primary action.
  *
- * 入场：三处 `data-reveal` 交给页面壳的 useRevealGroup 统一编排
- * （标题 0ms → meta 70ms → 动作 140ms → tabs 210ms）。
+ * Entrance: the three `data-reveal` nodes are staged by the page's useRevealGroup
+ * (title 0ms → meta 70ms → actions 140ms → tabs 210ms).
  */
 export function QuotaHeader(props: QuotaHeaderProps) {
   const {
@@ -77,7 +77,7 @@ export function QuotaHeader(props: QuotaHeaderProps) {
           ) : (
             <IconEye size={14} aria-hidden="true" />
           )}
-          {t('quota_management.show_emails')}
+          {showEmails ? t('quota_management.hide_emails') : t('quota_management.show_emails')}
         </button>
         <button
           type="button"

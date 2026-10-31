@@ -4,9 +4,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: rgba(0, 0, 0, 0.55);
   z-index: 2000;
   display: flex;
   justify-content: flex-end;
@@ -24,10 +22,8 @@
 .content {
   position: relative;
   background: var(--bg-primary);
-  border-left: 1px solid var(--border-color);
-  box-shadow:
-    -8px 0 32px rgba(0, 0, 0, 0.16),
-    var(--floating-shadow);
+  border-left: 0;
+  box-shadow: var(--floating-shadow);
   transform: translate3d(100%, 0, 0);
   will-change: transform;
   display: flex;
@@ -94,7 +90,7 @@
 
 .header {
   flex-shrink: 0;
-  padding: 20px 56px 20px 24px;
+  padding: 22px 56px 18px 24px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
@@ -102,22 +98,21 @@
 }
 
 .eyebrow {
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-tertiary);
 }
 
 .title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
   margin: 0;
 }
 
 .description {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted-foreground);
   line-height: 1.5;
   margin: 0;
@@ -152,7 +147,7 @@
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-chip, var(--radius-md));
   cursor: pointer;
   transition:
     background-color $transition-fast,
@@ -164,7 +159,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 2px;
   }
 }
@@ -212,4 +207,3 @@
     transform: translate3d(100%, 0, 0);
   }
 }
-

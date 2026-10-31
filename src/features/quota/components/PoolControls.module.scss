@@ -1,6 +1,4 @@
-@use '../../../styles/mixins' as *;
-
-/* Filter row: segmented groups share the pill vocabulary of the quota timeline. */
+/* Filter row: segmented wells, plain labels, a date range pinned to the right. */
 
 .controls {
   display: flex;
@@ -9,6 +7,7 @@
   flex-wrap: wrap;
   gap: 10px 16px;
   min-width: 0;
+  font-size: 14px;
 }
 
 .group,
@@ -16,14 +15,20 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px 10px;
+  gap: 10px 14px;
   min-width: 0;
+}
+
+.pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .label,
 .rangeLabel {
-  font-size: 13px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
@@ -34,41 +39,43 @@
 .segmented {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
   padding: 3px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--bg-tertiary);
+  border-radius: var(--radius-control, 11px);
+  background: var(--surface-well);
 
   button {
-    padding: 5px 12px;
-    border: 1px solid transparent;
-    border-radius: 7px;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 9px;
     background: transparent;
     color: var(--text-secondary);
     font: inherit;
-    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
     cursor: pointer;
     transition:
       background-color var(--dur-hover) var(--ease-out-strong),
       color var(--dur-hover) var(--ease-out-strong);
 
+    &:hover {
+      color: var(--text-primary);
+    }
+
     &[aria-pressed='true'] {
-      border-color: var(--border-hover);
-      background: var(--floating-surface, var(--bg-primary));
+      background: var(--surface-selected);
       color: var(--text-primary);
       font-weight: 600;
     }
 
     &:focus-visible {
-      outline: 2px solid var(--primary-color);
+      outline: 2px solid var(--text-secondary);
       outline-offset: 1px;
     }
   }
 }
 
 .select {
-  min-width: 140px;
+  display: inline-flex;
 }
 
 .toggle,
@@ -77,61 +84,74 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 34px;
-  padding: 0 14px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
+  border: 0;
   font: inherit;
-  font-size: 13px;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background-color var(--dur-hover) var(--ease-out-strong),
-    color var(--dur-hover) var(--ease-out-strong),
-    transform var(--dur-press) var(--ease-out-strong);
+    color var(--dur-hover) var(--ease-out-strong);
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-secondary);
     outline-offset: 2px;
   }
+}
 
-  &:active:not(:disabled) {
-    transform: scale(0.97);
+.toggle {
+  height: 36px;
+  padding: 0 13px;
+  border-radius: var(--radius-control, 11px);
+  background: var(--surface-well);
+  color: var(--text-primary);
+  font-weight: 500;
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+
+  &[aria-pressed='true'] {
+    background: var(--surface-selected);
+  }
+}
+
+.today {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-control, 11px);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-weight: 500;
+
+  &:hover:not(:disabled) {
+    background: var(--bg-hover);
   }
 
   &:disabled {
     cursor: default;
-    opacity: 0.55;
   }
 }
 
-.toggle[aria-pressed='true'],
-.today:not(:disabled) {
-  border-color: var(--border-hover);
-  background: var(--floating-surface, var(--bg-primary));
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
 .iconButton {
-  width: 34px;
-  padding: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   background: transparent;
-  border-color: transparent;
+  color: var(--text-secondary);
+
+  &:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
 }
 
 .flip {
   transform: scaleX(-1);
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .segmented button:hover:not([aria-pressed='true']),
-  .toggle:hover,
-  .iconButton:hover,
-  .today:hover:not(:disabled) {
-    color: var(--text-primary);
-    background: var(--bg-hover);
+@media (max-width: 900px) {
+  .range {
+    margin-left: 0;
   }
 }
 
@@ -141,17 +161,5 @@
   .today,
   .iconButton {
     transition: none;
-  }
-
-  .toggle:active:not(:disabled),
-  .today:active:not(:disabled),
-  .iconButton:active:not(:disabled) {
-    transform: none;
-  }
-}
-
-@include mobile {
-  .controls {
-    align-items: flex-start;
   }
 }

@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { QuotaResetsState } from '@/services/api/quotaResets';
 import type { SeatPacerStatus } from '@/services/api/seatPacer';
 import { useQuotaStore } from '@/stores';
 import type { AuthFileItem } from '@/types';
@@ -31,6 +32,8 @@ export interface PoolSourcesState {
   seatPacerState: OptionalSourceState;
   history: QuotaHistory | null;
   historyState: OptionalSourceState;
+  resets: QuotaResetsState | null;
+  resetsState: OptionalSourceState;
 }
 
 const INITIAL_STATE: PoolSourcesState = {
@@ -43,6 +46,8 @@ const INITIAL_STATE: PoolSourcesState = {
   seatPacerState: 'idle',
   history: null,
   historyState: 'idle',
+  resets: null,
+  resetsState: 'idle',
 };
 
 export interface UsePoolSourcesOptions {
@@ -93,7 +98,11 @@ export function usePoolSources({
       setState((prev) => ({ ...prev, refreshing: true }));
 
       try {
-        const result = await loadPoolSources({ includeSeatPacer, includeHistory });
+        const result = await loadPoolSources({
+          includeSeatPacer,
+          includeHistory,
+          includeResets: true,
+        });
         if (!isCurrent()) return;
         const settledAt = Date.now();
         lastRefreshRef.current = settledAt;
@@ -131,6 +140,13 @@ export function usePoolSources({
             next.historyState = result.history.value ? 'ok' : 'absent';
           } else if (result.history?.status === 'rejected') {
             next.historyState = 'error';
+          }
+
+          if (result.resets?.status === 'fulfilled') {
+            next.resets = result.resets.value;
+            next.resetsState = result.resets.value ? 'ok' : 'absent';
+          } else if (result.resets?.status === 'rejected') {
+            next.resetsState = 'error';
           }
           return next;
         });
@@ -174,5 +190,14 @@ export function usePoolSources({
 
   const refresh = useCallback(() => load(true), [load]);
 
-  return { ...state, sessionGeneration, refresh };
+  /** Apply scheduler state returned by an action, unless the session moved on. */
+  const applyResets = useCallback(
+    (resets: QuotaResetsState | null) => {
+      if (!resets || sessionGeneration !== useQuotaStore.getState().cacheGeneration) return;
+      setState((prev) => ({ ...prev, resets, resetsState: 'ok' }));
+    },
+    [sessionGeneration]
+  );
+
+  return { ...state, sessionGeneration, refresh, applyResets };
 }

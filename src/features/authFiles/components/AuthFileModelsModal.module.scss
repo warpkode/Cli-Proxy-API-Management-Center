@@ -5,7 +5,7 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   max-height: min(52dvh, 480px);
   overflow-y: auto;
   padding-right: 2px;
@@ -16,9 +16,9 @@
   align-items: baseline;
   gap: 8px;
   flex-wrap: wrap;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid transparent;
+  padding: 10px 10px;
+  border-radius: 10px;
+  border: 0;
   cursor: pointer;
   transition:
     background-color $transition-fast,
@@ -32,8 +32,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .item:hover {
-    background: var(--bg-tertiary);
-    border-color: color-mix(in srgb, var(--border-color) 70%, transparent);
+    background: var(--surface-well, var(--bg-tertiary));
   }
 }
 
@@ -43,39 +42,37 @@
 
 .modelId {
   font-family: $font-mono;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-primary);
   overflow-wrap: anywhere;
 }
 
 .modelDisplayName {
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--text-tertiary);
   @include text-ellipsis;
 }
 
 .modelType {
-  font-family: $font-mono;
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  padding: 1px 6px;
-  border-radius: $radius-full;
-  border: 1px solid var(--border-color);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: 7px;
+  border: 0;
+  background: var(--surface-well, var(--bg-tertiary));
 }
 
 .excludedBadge {
   margin-left: auto;
-  font-size: 10.5px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--failure-badge-text);
   background: var(--failure-badge-bg);
-  border: 1px solid var(--failure-badge-border);
-  border-radius: $radius-full;
-  padding: 1px 7px;
+  border: 0;
+  border-radius: 7px;
+  padding: 2px 8px;
   white-space: nowrap;
 }
 

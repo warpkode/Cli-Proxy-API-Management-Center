@@ -35,7 +35,7 @@
     display: block;
     padding: 0;
     border-top: 1px solid var(--border-color);
-    background: color-mix(in srgb, var(--bg-secondary) 60%, var(--bg-primary));
+    background: transparent;
   }
 }
 
@@ -78,8 +78,8 @@
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  border: 0;
+  background: var(--surface-well);
   color: var(--text-secondary);
 }
 
@@ -99,7 +99,7 @@
 
 .headingTitle {
   font-size: 17px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.25;
   letter-spacing: -0.015em;
   color: var(--text-primary);
@@ -107,10 +107,8 @@
 }
 
 .headingCaption {
-  font-family: $font-mono;
-  font-size: 11.5px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-size: 13px;
+  font-weight: 400;
   color: var(--text-tertiary);
 }
 
@@ -149,7 +147,7 @@
   align-items: center;
   gap: 3px;
   margin-left: 2px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--text-primary) 30%, transparent);
@@ -158,17 +156,17 @@
   transition: text-decoration-color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out);
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 2px;
   }
 }
 
 .alert {
   padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--viz-failure) 28%, transparent);
-  background: color-mix(in srgb, var(--viz-failure) 8%, transparent);
-  color: color-mix(in srgb, var(--viz-failure) 82%, var(--text-primary));
+  border-radius: var(--radius-control, 11px);
+  border: 0;
+  background: var(--bg-error-light);
+  color: var(--warning-text);
   font-size: 13px;
   line-height: 1.55;
   overflow-wrap: anywhere;
@@ -216,13 +214,12 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 1px solid var(--border-primary);
-  background: var(--bg-primary);
-  font-family: $font-mono;
-  font-size: 11px;
-  font-weight: 600;
+  border: 0;
+  background: var(--surface-selected);
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1;
-  color: var(--text-secondary);
+  color: var(--text-primary);
 
   &::before {
     content: counter(oauth-step);
@@ -245,27 +242,26 @@
 }
 
 .stepTitle {
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1.45;
   color: var(--text-primary);
 }
 
 .optional {
-  padding: 1px 7px;
-  border-radius: 999px;
-  border: 1px solid var(--border-color);
-  font-family: $font-mono;
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
-  line-height: 1.5;
-  color: var(--text-tertiary);
+  padding: 2px 8px;
+  border-radius: 7px;
+  border: 0;
+  background: var(--surface-well);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--text-secondary);
 }
 
 .stepHint {
   margin: -4px 0 0;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.6;
   color: var(--text-tertiary);
   overflow-wrap: anywhere;
@@ -278,10 +274,10 @@
   align-items: center;
   gap: 6px;
   height: 38px;
-  padding: 0 4px 0 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  padding: 0 4px 0 13px;
+  border-radius: var(--radius-control, 11px);
+  border: 0;
+  background: var(--surface-well);
   min-width: 0;
 }
 
@@ -338,9 +334,9 @@
 
 .code {
   padding: 8px 14px;
-  border-radius: 10px;
-  border: 1px dashed var(--border-primary);
-  background: var(--bg-secondary);
+  border-radius: var(--radius-control, 11px);
+  border: 0;
+  background: var(--surface-well);
   font-family: $font-mono;
   font-size: 22px;
   font-weight: 600;
@@ -361,11 +357,11 @@
 .callbackInput {
   flex: 1;
   min-width: 0;
-  height: 36px;
-  padding: 0 12px;
-  border-radius: 10px;
+  height: 38px;
+  padding: 0 13px;
+  border-radius: var(--radius-control, 11px);
   font-family: $font-mono;
-  font-size: 12px;
+  font-size: 12.5px;
 
   &:disabled {
     cursor: not-allowed;
@@ -382,11 +378,11 @@
 }
 
 .feedbackError {
-  color: var(--viz-failure);
+  color: var(--error-color);
 }
 
 .feedbackSuccess {
-  color: var(--viz-success);
+  color: var(--success-color);
 }
 
 /* ---------- 按钮 ---------- */
@@ -398,11 +394,11 @@
   justify-content: center;
   gap: 7px;
   flex-shrink: 0;
-  height: 36px;
-  padding: 0 16px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
+  height: 38px;
+  padding: 0 15px;
+  border-radius: var(--radius-control, 11px);
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1;
   white-space: nowrap;
   transition:
@@ -417,7 +413,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 2px;
   }
 
@@ -431,37 +427,36 @@
   }
 }
 
-/* 墨色药丸（深色主题自动反相） */
+/* 主操作：白底（深色）/ 墨底（浅色） */
 .primary {
   @extend %pill;
-  background: var(--text-primary);
-  color: var(--bg-secondary);
+  background: var(--primary-color);
+  color: var(--primary-contrast);
 }
 
 .secondary {
   @extend %pill;
-  border: 1px solid var(--border-primary);
-  background: var(--bg-secondary);
+  border: 0;
+  background: var(--bg-tertiary);
   color: var(--text-primary);
 }
 
 .ghost {
   @extend %pill;
-  height: 30px;
-  padding: 0 12px;
-  font-size: 12.5px;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: var(--radius-chip, 9px);
+  font-size: 13px;
   color: var(--text-secondary);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .primary:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--text-primary) 86%, var(--bg-secondary));
-    box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--text-primary) 45%, transparent);
+    background: var(--primary-hover);
   }
 
   .secondary:hover:not(:disabled) {
-    border-color: var(--border-hover);
-    background: var(--bg-tertiary);
+    background: var(--bg-hover);
   }
 
   .ghost:hover:not(:disabled) {
@@ -501,10 +496,8 @@
   gap: 9px;
   min-width: 0;
   margin: 0;
-  font-family: $font-mono;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-size: 13px;
+  font-weight: 400;
   color: var(--text-primary);
 }
 
@@ -545,7 +538,7 @@
 }
 
 .statusBar[data-tone='error'] .statusText {
-  color: var(--viz-failure);
+  color: var(--error-color);
 }
 
 .statusBar[data-tone='error'] .statusDot::after {
@@ -612,8 +605,8 @@
 }
 
 .resultTitle {
-  font-size: 16px;
-  font-weight: 650;
+  font-size: 17px;
+  font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--text-primary);
 }
@@ -633,12 +626,9 @@
   margin-top: 14px;
 }
 
-/* ---------- 赞助商对话框（Kimi）：延续卡片的品牌蓝 ---------- */
+/* ---------- 赞助商对话框（Kimi）：fork 设计语言下与普通对话框同色，只保留品牌 logo ---------- */
 
 :global(.modal).sponsorDialog {
-  background:
-    radial-gradient(90% 60% at 100% 0%, sponsor-tint(12%), transparent 60%), var(--bg-primary);
-
   /* 与赞助卡一致：图标自带圆角方块，直接铺满，不再套一层描边容器 */
   .headingGlyph {
     border: 0;
@@ -649,28 +639,6 @@
   .headingImage {
     width: 44px;
     height: 44px;
-  }
-
-  .primary {
-    background: #{$sponsor-blue-strong};
-    color: #fff;
-  }
-
-  .primary:focus-visible,
-  .inlineLink:focus-visible {
-    outline-color: #{$sponsor-blue};
-  }
-
-  .inlineLink {
-    color: sponsor-ink();
-    text-decoration-color: sponsor-tint(40%);
-  }
-}
-
-@media (hover: hover) and (pointer: fine) {
-  :global(.modal).sponsorDialog .primary:hover:not(:disabled) {
-    background: #{$sponsor-blue-strong-hover};
-    box-shadow: 0 10px 22px -10px sponsor-tint(70%);
   }
 }
 

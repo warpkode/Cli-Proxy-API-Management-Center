@@ -14,22 +14,24 @@
 
 .pageHeader {
   display: flex;
-  flex-direction: column;
-  gap: $spacing-sm;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
 }
 
 .title {
   margin: 0;
   color: var(--text-primary);
-  font-size: 28px;
-  font-weight: 700;
+  font-size: var(--page-title-size, 24px);
+  font-weight: 600;
   line-height: 1.2;
+  letter-spacing: -0.015em;
 }
 
 .description {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 14.5px;
   line-height: 1.5;
 }
 
@@ -37,8 +39,8 @@
 
 .errorBox,
 .warningBox {
-  padding: $spacing-md;
-  border-radius: $radius-md;
+  padding: 12px 16px;
+  border-radius: 14px;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -48,9 +50,9 @@
   align-items: center;
   justify-content: space-between;
   gap: $spacing-md;
-  border: 1px solid var(--danger-color);
-  background: rgba($error-color, 0.1);
-  color: var(--danger-color);
+  border: 0;
+  background: var(--bg-error-light);
+  color: var(--error-color);
 
   span {
     min-width: 0;
@@ -68,8 +70,8 @@
 }
 
 .warningBox {
-  border: 1px solid color-mix(in srgb, var(--warning-color, #c65746) 42%, var(--border-color));
-  background: color-mix(in srgb, var(--warning-color, #c65746) 9%, var(--bg-secondary));
+  border: 0;
+  background: color-mix(in srgb, var(--accent-amber, #b7791f) 10%, transparent);
   color: var(--text-primary);
 }
 
@@ -89,7 +91,7 @@
   }
 
   span {
-    font-weight: 700;
+    font-weight: 500;
     overflow-wrap: anywhere;
   }
 
@@ -106,16 +108,16 @@
   display: flex;
   align-items: flex-start;
   gap: $spacing-sm;
-  padding: 12px 14px;
-  border-radius: $radius-md;
-  border: 1px solid color-mix(in srgb, var(--quota-medium-color, #e0aa14) 45%, var(--border-color));
-  background: color-mix(in srgb, var(--quota-medium-color, #e0aa14) 14%, var(--bg-secondary));
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 0;
+  background: color-mix(in srgb, var(--accent-amber, #b7791f) 9%, var(--bg-primary));
   color: var(--text-primary);
 
   > svg {
     flex-shrink: 0;
     margin-top: 1px;
-    color: var(--quota-medium-color, #e0aa14);
+    color: var(--accent-amber, var(--quota-medium-color));
   }
 }
 
@@ -125,7 +127,7 @@
   strong {
     display: block;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.4;
   }
 
@@ -142,11 +144,10 @@
 .statusBar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
-  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   flex-wrap: wrap;
 }
 
@@ -156,12 +157,12 @@
   max-width: 100%;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
-  border-radius: $radius-full;
-  border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
-  background: color-mix(in srgb, var(--bg-primary) 56%, transparent);
-  font-size: 12px;
-  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: var(--radius-control, 11px);
+  border: 0;
+  background: var(--bg-primary);
+  font-size: 13.5px;
+  font-weight: 400;
   white-space: nowrap;
 }
 
@@ -173,8 +174,7 @@
 }
 
 .statusDotOn {
-  background: $success-color;
-  box-shadow: 0 0 6px rgba($success-color, 0.5);
+  background: var(--success-color);
 }
 
 .statusDotOff {
@@ -187,7 +187,7 @@
 
 .statusValue {
   color: var(--text-primary);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .statusPathValue {
@@ -200,14 +200,7 @@
 }
 
 .statusDivider {
-  width: 1px;
-  height: 20px;
-  background: color-mix(in srgb, var(--border-color) 60%, transparent);
-  flex-shrink: 0;
-
-  @include mobile {
-    display: none;
-  }
+  display: none;
 }
 
 // ─── Toolbar ────────────────────────────────────────────
@@ -245,54 +238,60 @@
 
 // ─── Status Filter Chips ────────────────────────────────
 
+// Pill tabs: active chip on --bg-tertiary, counts in muted ink.
 .filterChips {
   display: flex;
   align-items: center;
-  gap: $spacing-sm;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .filterChip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
-  border-radius: $radius-full;
-  background: var(--bg-primary);
+  gap: 8px;
+  padding: 8px 13px;
+  border: 0;
+  border-radius: var(--radius-control, 11px);
+  background: transparent;
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-size: 14.5px;
+  font-weight: 400;
+  line-height: 1.3;
   cursor: pointer;
   transition:
-    border-color $transition-fast,
     background-color $transition-fast,
     color $transition-fast;
 
   &:hover {
-    border-color: var(--primary-color);
+    background: var(--bg-primary);
     color: var(--text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
   }
 }
 
 .filterChipActive {
-  border-color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 12%, var(--bg-primary));
+  background: var(--bg-tertiary);
   color: var(--text-primary);
+
+  &:hover {
+    background: var(--bg-tertiary);
+  }
 }
 
 .filterChipCount {
   display: inline-flex;
-  min-width: 18px;
   align-items: center;
-  justify-content: center;
-  padding: 0 5px;
-  border-radius: $radius-full;
-  background: color-mix(in srgb, var(--border-color) 45%, transparent);
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 700;
+  padding: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 
 // ─── Card Grid ──────────────────────────────────────────
@@ -312,19 +311,11 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: $spacing-sm;
-  padding: $spacing-md;
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
-  border-radius: $radius-lg;
+  gap: 10px;
+  padding: 20px 22px;
+  border: 0;
+  border-radius: var(--radius-card, 18px);
   background: var(--bg-primary);
-  transition:
-    border-color $transition-fast,
-    background-color $transition-fast;
-
-  &:hover {
-    border-color: color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
-    background: var(--bg-hover);
-  }
 }
 
 .cardHeader {
@@ -345,8 +336,8 @@
   justify-content: center;
   overflow: hidden;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
-  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  border: 0;
+  background: var(--surface-well, var(--bg-tertiary));
   color: var(--text-secondary);
   flex-shrink: 0;
 
@@ -369,8 +360,8 @@
 .cardTitle {
   margin: 0;
   color: var(--text-primary);
-  font-size: 15px;
-  font-weight: 650;
+  font-size: 15.5px;
+  font-weight: 600;
   line-height: 1.3;
   overflow-wrap: anywhere;
   @include text-ellipsis-multiline(2);
@@ -379,7 +370,7 @@
 .cardId {
   color: var(--text-tertiary);
   font-family: $font-mono;
-  font-size: 12px;
+  font-size: 12.5px;
   @include text-ellipsis;
 }
 
@@ -402,38 +393,35 @@
 .badgeWarning,
 .badgeUntrusted {
   display: inline-flex;
-  min-height: 22px;
+  min-height: 20px;
   align-items: center;
-  border-radius: 6px;
+  border: 0;
+  border-radius: 7px;
   padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 400;
   line-height: 1.25;
 }
 
 .badge {
-  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+  background: var(--surface-well, var(--bg-secondary));
   color: var(--text-secondary);
 }
 
 .badgeSuccess {
-  background: rgba($success-color, 0.1);
-  border: 1px solid rgba($success-color, 0.2);
-  color: var(--success-color);
+  background: var(--success-badge-bg);
+  color: var(--success-badge-text);
 }
 
 .badgeWarning {
-  background: rgba($warning-color, 0.1);
-  border: 1px solid rgba($warning-color, 0.2);
-  color: var(--warning-color);
+  background: var(--failure-badge-bg);
+  color: var(--failure-badge-text);
 }
 
 .badgeUntrusted {
   gap: 4px;
-  background: rgba($warning-color, 0.12);
-  border: 1px solid rgba($warning-color, 0.4);
-  color: var(--danger-color);
+  background: color-mix(in srgb, var(--accent-amber, #b7791f) 12%, transparent);
+  color: var(--accent-amber, var(--amber-text));
 
   svg {
     flex-shrink: 0;
@@ -469,20 +457,19 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--primary-color);
+  color: var(--text-primary);
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 500;
   line-height: 1.4;
 
   &:hover {
-    color: var(--primary-hover);
     text-decoration: underline;
   }
 
   &:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--primary-color) 45%, transparent);
+    outline: 2px solid var(--text-primary);
     outline-offset: 3px;
     border-radius: 4px;
   }
@@ -502,12 +489,12 @@
   align-items: center;
   gap: $spacing-sm;
   color: var(--text-tertiary);
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
 
   strong {
     color: var(--text-secondary);
-    font-weight: 600;
+    font-weight: 500;
   }
 }
 
@@ -529,12 +516,12 @@
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  border-radius: $radius-full;
-  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
-  color: var(--text-tertiary);
-  font-size: 11px;
-  font-weight: 600;
+  border-radius: 7px;
+  background: var(--surface-well, var(--bg-secondary));
+  border: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
   line-height: 1.4;
 }
 
@@ -569,25 +556,28 @@
 
 .iconLink {
   display: inline-flex;
-  width: 30px;
-  min-height: 30px;
+  width: 32px;
+  min-height: 32px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border-color);
-  border-radius: $radius-md;
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  border: 0;
+  border-radius: var(--radius-chip, 9px);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   text-decoration: none;
   transition:
-    border-color $transition-fast,
     background-color $transition-fast,
     color $transition-fast;
 
   &:hover {
-    border-color: var(--primary-color);
     background: var(--bg-hover);
-    color: var(--primary-color);
+    color: var(--text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
   }
 }
 
@@ -614,8 +604,8 @@
 
 .installVersionLabel {
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .installVersionModes {
@@ -632,17 +622,16 @@
   display: flex;
   min-width: 0;
   gap: 8px;
-  padding: 10px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
-  border-radius: $radius-md;
-  background: var(--bg-primary);
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--surface-well, var(--bg-primary));
   cursor: pointer;
   transition:
     border-color $transition-fast,
     background-color $transition-fast;
 
   &:hover {
-    border-color: color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
     background: var(--bg-hover);
   }
 
@@ -653,8 +642,8 @@
 }
 
 .installVersionModeActive {
-  border-color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 10%, var(--bg-primary));
+  border-color: var(--border-hover);
+  background: var(--surface-selected, var(--bg-tertiary));
 }
 
 .installVersionModeDisabled {
@@ -670,14 +659,14 @@
 
   strong {
     color: var(--text-primary);
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 13.5px;
+    font-weight: 500;
     line-height: 1.3;
   }
 
   small {
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.4;
     overflow-wrap: anywhere;
   }
@@ -687,10 +676,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px;
-  border-radius: $radius-md;
-  border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
-  background: color-mix(in srgb, var(--bg-secondary) 65%, transparent);
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 0;
+  background: var(--surface-well, var(--bg-secondary));
 
   :global(.form-group) {
     margin: 0;
@@ -719,8 +708,8 @@
   align-items: center;
   gap: 7px;
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 400;
   line-height: 1.4;
   cursor: pointer;
 
@@ -735,14 +724,13 @@
   max-width: 100%;
   align-items: center;
   gap: 5px;
-  color: var(--primary-color);
-  font-size: 12px;
-  font-weight: 650;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
   line-height: 1.4;
   text-decoration: none;
 
   &:hover {
-    color: var(--primary-hover);
     text-decoration: underline;
   }
 
@@ -768,9 +756,9 @@
   display: flex;
   flex-direction: column;
   gap: $spacing-md;
-  padding: $spacing-md;
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
-  border-radius: $radius-lg;
+  padding: 20px 22px;
+  border: 0;
+  border-radius: var(--radius-card, 18px);
   background: var(--bg-primary);
 }
 

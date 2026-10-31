@@ -14,6 +14,10 @@
  *   the account with the soonest weekly reset that still has quota, overflowing
  *   to the next one. An account's reset restores it to 100 and moves its reset
  *   one period on, recording a step-up of whatever it had used.
+ * - Reset grants follow the hub scheduler's policies: `expiry` spends one
+ *   `leadMs` before the grant expires, `limit` when the account runs dry, `off`
+ *   never. A grant that requires the limit (Claude) is refused while the account
+ *   has quota; an `expiry` grant then keeps waiting for the limit until it expires.
  */
 
 import { HOUR_MS, MINUTE_MS } from '@/utils/time/durations';
@@ -293,22 +297,59 @@ export interface SimulationAccount {
   periodMs: number;
 }
 
+export const GRANT_POLICIES = ['expiry', 'limit', 'off'] as const;
+export type GrantPolicy = (typeof GRANT_POLICIES)[number];
+
+/** A reset grant (Claude) or reset credit (Codex) the hub's scheduler may spend. */
+export interface SimulationGrant {
+  id: string;
+  accountId: string;
+  /** null: no known expiry, so the `expiry` policy never fires. */
+  expiresAtMs: number | null;
+  startsAtMs: number | null;
+  policy: GrantPolicy;
+  /** The `expiry` policy spends this long before the grant expires. */
+  leadMs: number;
+  /** Claude only accepts a reset while the account is at its limit. */
+  requiresLimit: boolean;
+  /** Resets left on the grant; each spend restores the account to 100. */
+  left: number;
+}
+
+export type GrantOutcome =
+  | { kind: 'spent'; atMs: number; amount: number }
+  | {
+      kind: 'unused';
+      atMs: number | null;
+      /** not_limited: due, but the account still had quota (Claude refuses). */
+      reason: 'not_limited' | 'expired' | 'off' | 'not_reached';
+    };
+
 export interface SimulationOptions {
   startMs: number;
   endMs: number;
   /** Pool-wide demand in percentage points per hour (burn × future-usage factor). */
   burnPerHour: number;
   stepMs?: number;
+  grants?: readonly SimulationGrant[];
 }
 
 export interface SimulationResult {
   pool: SeriesPoint[];
   perAccount: Record<string, SeriesPoint[]>;
+  /** Weekly resets and grant spends, time-ordered. */
   stepUps: StepUpEvent[];
   /** When the whole pool first reaches 0, or null if not before `endMs`. */
   poolEmptyAtMs: number | null;
   /** The first single account to reach 0 (possibly already at `startMs`). */
   firstEmpty: { accountId: string; atMs: number } | null;
+  /** First time each account reaches 0 at or after `startMs`; null if it never does. */
+  emptyAt: Record<string, number | null>;
+  /** The account demand drains first at `startMs` (soonest reset with quota left). */
+  activeAccountId: string | null;
+  /** The account drained after the active one. */
+  nextAccountId: string | null;
+  grantOutcomes: Record<string, GrantOutcome>;
 }
 
 interface SimState {
@@ -319,12 +360,24 @@ interface SimState {
   periodMs: number;
 }
 
+interface GrantState extends SimulationGrant {
+  spent: number;
+  /** An `expiry` grant that came due while its Claude account still had quota. */
+  retrying: boolean;
+  dueAtMs: number | null;
+}
+
 const bySoonestReset = (left: SimState, right: SimState) => {
   const leftAt = left.resetAtMs ?? Number.POSITIVE_INFINITY;
   const rightAt = right.resetAtMs ?? Number.POSITIVE_INFINITY;
   if (leftAt !== rightAt) return leftAt < rightAt ? -1 : 1;
   return left.order - right.order;
 };
+
+const grantActive = (grant: GrantState, atMs: number) =>
+  grant.left > 0 &&
+  (grant.startsAtMs === null || grant.startsAtMs <= atMs) &&
+  (grant.expiresAtMs === null || atMs < grant.expiresAtMs);
 
 export function simulatePool(
   accounts: readonly SimulationAccount[],
@@ -339,6 +392,10 @@ export function simulatePool(
     stepUps: [],
     poolEmptyAtMs: null,
     firstEmpty: null,
+    emptyAt: {},
+    activeAccountId: null,
+    nextAccountId: null,
+    grantOutcomes: {},
   };
   if (accounts.length === 0) return result;
 
@@ -357,8 +414,35 @@ export function simulatePool(
       entry.resetAtMs += periodMs;
     }
     result.perAccount[account.id] = [];
+    result.emptyAt[account.id] = null;
     return entry;
   });
+  const byId = new Map(state.map((entry) => [entry.id, entry]));
+
+  const grants: GrantState[] = (options.grants ?? [])
+    .filter((grant) => byId.has(grant.accountId))
+    .map((grant) => ({
+      ...grant,
+      spent: 0,
+      retrying: false,
+      dueAtMs:
+        grant.policy === 'expiry' && grant.expiresAtMs !== null
+          ? grant.expiresAtMs - Math.max(0, grant.leadMs)
+          : null,
+    }));
+  for (const grant of grants) {
+    if (grant.policy === 'off') {
+      result.grantOutcomes[grant.id] = { kind: 'unused', atMs: null, reason: 'off' };
+      grant.left = 0;
+    } else if (grant.left <= 0 || (grant.expiresAtMs !== null && grant.expiresAtMs <= startMs)) {
+      result.grantOutcomes[grant.id] = {
+        kind: 'unused',
+        atMs: grant.expiresAtMs,
+        reason: 'expired',
+      };
+      grant.left = 0;
+    }
+  }
 
   const total = () => state.reduce((sum, entry) => sum + entry.remaining, 0);
   const emit = (t: number) => {
@@ -370,69 +454,179 @@ export function simulatePool(
       result.poolEmptyAtMs = atMs;
     }
   };
+  const markEmpty = (entry: SimState, atMs: number) => {
+    if (result.emptyAt[entry.id] === null) result.emptyAt[entry.id] = atMs;
+    if (!result.firstEmpty) result.firstEmpty = { accountId: entry.id, atMs };
+  };
 
-  const alreadyEmpty = [...state].sort(bySoonestReset).find((entry) => entry.remaining <= EPSILON);
-  if (alreadyEmpty) result.firstEmpty = { accountId: alreadyEmpty.id, atMs: startMs };
-  checkPoolEmpty(startMs);
+  /** Spend one reset from `grant` at `atMs`; false when it cannot be used then. */
+  const spendGrant = (grant: GrantState, atMs: number): boolean => {
+    const entry = byId.get(grant.accountId);
+    if (!entry || !grantActive(grant, atMs)) return false;
+    if (grant.requiresLimit && entry.remaining > EPSILON) return false;
+    const amount = 100 - entry.remaining;
+    emit(atMs);
+    entry.remaining = 100;
+    grant.left -= 1;
+    grant.spent += 1;
+    grant.retrying = false;
+    if (grant.spent === 1) result.grantOutcomes[grant.id] = { kind: 'spent', atMs, amount };
+    if (amount >= 0.5) {
+      result.stepUps.push({
+        t: atMs,
+        amount,
+        accountIds: [entry.id],
+        kind: 'grant',
+        grantId: grant.id,
+      });
+    }
+    emit(atMs);
+    return true;
+  };
+
+  /** Grants that fire when their account runs dry. */
+  const onEmpty = (entry: SimState, atMs: number) => {
+    for (const grant of grants) {
+      if (grant.accountId !== entry.id || !grantActive(grant, atMs)) continue;
+      const armed = grant.policy === 'limit' || (grant.policy === 'expiry' && grant.retrying);
+      if (armed && spendGrant(grant, atMs)) return;
+    }
+  };
 
   const spend = (fromMs: number, toMs: number) => {
     if (toMs <= fromMs || ratePerMs <= 0) return;
     let demand = ratePerMs * (toMs - fromMs);
     let spent = 0;
-    const order = state.filter((entry) => entry.remaining > EPSILON).sort(bySoonestReset);
-    for (const entry of order) {
-      if (demand <= EPSILON) break;
+    // Re-pick after each account runs dry: a grant may have just restored it.
+    while (demand > EPSILON) {
+      const entry = state.filter((item) => item.remaining > EPSILON).sort(bySoonestReset)[0];
+      if (!entry) break;
       const take = Math.min(entry.remaining, demand);
       entry.remaining -= take;
       demand -= take;
       spent += take;
       if (entry.remaining <= EPSILON) {
         entry.remaining = 0;
-        if (!result.firstEmpty) {
-          result.firstEmpty = { accountId: entry.id, atMs: Math.round(fromMs + spent / ratePerMs) };
-        }
+        const atMs = Math.round(fromMs + spent / ratePerMs);
+        markEmpty(entry, atMs);
+        onEmpty(entry, atMs);
       }
     }
     checkPoolEmpty(Math.round(fromMs + spent / ratePerMs));
   };
 
+  /** `expiry` grants due by `atMs`; one refused while the account has quota keeps waiting. */
+  const fireDueGrants = (atMs: number) => {
+    for (const grant of grants) {
+      if (grant.dueAtMs === null || grant.dueAtMs > atMs) continue;
+      if (grant.retrying || grant.spent > 0 || grant.left <= 0) continue;
+      if (!spendGrant(grant, atMs)) grant.retrying = grantActive(grant, atMs);
+    }
+  };
+
+  /** `limit` grants that start at `atMs` on an account that is already dry. */
+  const fireStarted = (atMs: number) => {
+    for (const grant of grants) {
+      if (grant.startsAtMs !== atMs || grant.policy !== 'limit') continue;
+      const entry = byId.get(grant.accountId);
+      if (entry && entry.remaining <= EPSILON) spendGrant(grant, atMs);
+    }
+  };
+
+  /** A waiting grant that reached its expiry unspent. */
+  const expireWaiting = (atMs: number) => {
+    for (const grant of grants) {
+      if (!grant.retrying || grant.expiresAtMs === null || grant.expiresAtMs > atMs) continue;
+      grant.retrying = false;
+      grant.left = 0;
+      result.grantOutcomes[grant.id] = {
+        kind: 'unused',
+        atMs: grant.dueAtMs,
+        reason: 'not_limited',
+      };
+    }
+  };
+
   emit(startMs);
+  for (const entry of [...state].sort(bySoonestReset)) {
+    if (entry.remaining > EPSILON) continue;
+    markEmpty(entry, startMs);
+    onEmpty(entry, startMs);
+  }
+  fireDueGrants(startMs);
+  checkPoolEmpty(startMs);
+  const drainOrder = state.filter((entry) => entry.remaining > EPSILON).sort(bySoonestReset);
+  result.activeAccountId = drainOrder[0]?.id ?? null;
+  result.nextAccountId = drainOrder[1]?.id ?? null;
   let t = startMs;
   while (t < endMs) {
     const stepEnd = Math.min(t + stepMs, endMs);
     let cursor = t;
     let emittedAt: number | null = null;
     for (;;) {
-      let nextReset: number | null = null;
-      for (const entry of state) {
-        if (entry.resetAtMs !== null && entry.resetAtMs > cursor && entry.resetAtMs <= stepEnd) {
-          nextReset = nextReset === null ? entry.resetAtMs : Math.min(nextReset, entry.resetAtMs);
-        }
-      }
-      spend(cursor, nextReset ?? stepEnd);
-      if (nextReset === null) break;
-
-      emit(nextReset);
-      const resetting = state.filter((entry) => entry.resetAtMs === nextReset);
-      let amount = 0;
-      for (const entry of resetting) {
-        amount += 100 - entry.remaining;
-        entry.remaining = 100;
-        entry.resetAtMs = nextReset + entry.periodMs;
-      }
-      result.stepUps.push({
-        t: nextReset,
-        amount,
-        accountIds: resetting.map((entry) => entry.id),
+      let nextEvent = Number.POSITIVE_INFINITY;
+      const consider = (at: number | null) => {
+        if (at !== null && at > cursor && at <= stepEnd) nextEvent = Math.min(nextEvent, at);
+      };
+      state.forEach((entry) => consider(entry.resetAtMs));
+      grants.forEach((grant) => {
+        if (grant.retrying) consider(grant.expiresAtMs);
+        else if (grant.spent === 0 && grant.left > 0) consider(grant.dueAtMs);
+        // A grant that starts (or stops being blocked) later is re-checked then.
+        if (grant.left > 0 && grant.policy !== 'off') consider(grant.startsAtMs);
       });
-      emit(nextReset);
-      emittedAt = nextReset;
-      cursor = nextReset;
+      const hasEvent = Number.isFinite(nextEvent);
+      spend(cursor, hasEvent ? nextEvent : stepEnd);
+      if (!hasEvent) break;
+
+      const at = nextEvent;
+      const resetting = state.filter((entry) => entry.resetAtMs === at);
+      if (resetting.length > 0) {
+        emit(at);
+        let amount = 0;
+        for (const entry of resetting) {
+          amount += 100 - entry.remaining;
+          entry.remaining = 100;
+          entry.resetAtMs = at + entry.periodMs;
+        }
+        result.stepUps.push({
+          t: at,
+          amount,
+          accountIds: resetting.map((entry) => entry.id),
+          kind: 'reset',
+        });
+        emit(at);
+        emittedAt = at;
+      }
+      expireWaiting(at);
+      fireDueGrants(at);
+      fireStarted(at);
+      cursor = at;
       if (cursor >= stepEnd) break;
     }
     if (emittedAt !== stepEnd) emit(stepEnd);
     t = stepEnd;
   }
+
+  for (const grant of grants) {
+    if (result.grantOutcomes[grant.id]) continue;
+    if (grant.retrying) {
+      result.grantOutcomes[grant.id] = {
+        kind: 'unused',
+        atMs: grant.dueAtMs,
+        reason: 'not_limited',
+      };
+    } else if (grant.expiresAtMs !== null && grant.expiresAtMs <= endMs) {
+      result.grantOutcomes[grant.id] = {
+        kind: 'unused',
+        atMs: grant.expiresAtMs,
+        reason: 'expired',
+      };
+    } else {
+      result.grantOutcomes[grant.id] = { kind: 'unused', atMs: null, reason: 'not_reached' };
+    }
+  }
+  result.stepUps.sort((left, right) => left.t - right.t);
 
   return result;
 }
@@ -470,7 +664,8 @@ export function summarizePool(
     remaining,
     poolEmptyAtMs: simulation.poolEmptyAtMs,
     firstEmpty: simulation.firstEmpty,
-    nextReset: simulation.stepUps.find((event) => event.t > nowMs) ?? null,
+    nextReset:
+      simulation.stepUps.find((event) => event.t > nowMs && event.kind !== 'grant') ?? null,
     horizonEndMs,
   };
 }

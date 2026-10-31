@@ -99,25 +99,41 @@ export interface StepLabel {
   x: number;
   y: number;
   text: string;
+  event: StepUpEvent;
+  /** 0 = directly above the step; higher levels stack above a crowded neighbour. */
+  level: number;
+}
+
+export interface StepLabelOptions {
+  minAmount: number;
+  minGapPx: number;
+  format: (amount: number) => string;
+  /** Stack crowded labels up to this many levels instead of dropping them. */
+  maxLevel?: number;
 }
 
 /**
- * "+X%" labels above each step-up, skipping tiny steps and any label that would
- * collide with the previous one.
+ * "+X%" labels above each step-up, skipping tiny steps. A label that would
+ * collide with the previous one stacks a level higher (up to `maxLevel`), and
+ * is dropped beyond that.
  */
 export function placeStepLabels(
   events: readonly StepUpEvent[],
   series: readonly SeriesPoint[],
   scale: ChartScale,
-  options: { minAmount: number; minGapPx: number; format: (amount: number) => string }
+  options: StepLabelOptions
 ): StepLabel[] {
   const labels: StepLabel[] = [];
+  const maxLevel = options.maxLevel ?? 0;
   let lastX = Number.NEGATIVE_INFINITY;
+  let lastLevel = -1;
   for (const event of events) {
     if (event.amount < options.minAmount) continue;
     const x = scale.x(event.t);
     if (x < scale.plot.left || x > scale.plot.left + scale.plot.width) continue;
-    if (x - lastX < options.minGapPx) continue;
+    const crowded = x - lastX < options.minGapPx;
+    const level = crowded ? lastLevel + 1 : 0;
+    if (level > maxLevel) continue;
     // Label the top of the step: the highest value drawn just after the instant
     // (downsampling may have moved the exact step points within their bucket).
     let top = Number.NEGATIVE_INFINITY;
@@ -129,12 +145,15 @@ export function placeStepLabels(
     if (!Number.isFinite(top)) top = nearestPoint(series, event.t)?.value ?? Number.NaN;
     if (!Number.isFinite(top)) continue;
     labels.push({
-      key: `${event.t}`,
+      key: `${event.kind ?? 'reset'}-${event.grantId ?? ''}-${event.t}`,
       x,
       y: Math.max(10, scale.y(top) - 8),
       text: options.format(event.amount),
+      event,
+      level,
     });
     lastX = x;
+    lastLevel = level;
   }
   return labels;
 }

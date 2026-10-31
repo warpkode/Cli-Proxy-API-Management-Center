@@ -29,9 +29,9 @@ $diff-hunk-color: #388bfd;
 
 .emptyState {
   flex: 1;
-  border: 1px dashed var(--border-color);
-  border-radius: $radius-md;
-  background: var(--bg-secondary);
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-well, var(--bg-secondary));
   color: var(--text-secondary);
   font-size: 14px;
   display: grid;

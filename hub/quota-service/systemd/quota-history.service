@@ -1,0 +1,6 @@
+[Unit]
+Description=Record pooled Claude/Codex quota snapshots for the Management Center
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/quota-history/recorder.py

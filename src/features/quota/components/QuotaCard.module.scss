@@ -492,3 +492,64 @@
     animation: none;
   }
 }
+
+/* ---------- Fork design language ----------
+ * Flat wells: no tier lighting, lift, stone or travertine surfaces. The plan
+ * still reads from the body text. Appended last so the upstream tier rules
+ * above stay untouched for merges; `html` raises specificity over them. */
+
+:global(html) .card,
+:global(html[data-theme]) .card {
+  --text-primary: inherit;
+  --text-secondary: inherit;
+  --text-tertiary: inherit;
+  --text-quaternary: inherit;
+  --border-color: inherit;
+  --border-hover: inherit;
+  --bg-primary: inherit;
+  --bg-tertiary: inherit;
+  --primary-color: inherit;
+  --quota-plan-accent: var(--text-secondary);
+
+  color: var(--text-primary);
+  border-color: transparent;
+  border-radius: 14px;
+  outline: none;
+  background: var(--bg-primary);
+  box-shadow: none;
+}
+
+:global(html) .card::before,
+:global(html) .card::after {
+  content: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :global(html) .card:hover,
+  :global(html[data-theme]) .card:hover {
+    transform: none;
+    border-color: transparent;
+    box-shadow: none;
+  }
+}
+
+:global(html) .fileName {
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+:global(html) .iconWrap {
+  background: transparent;
+}
+
+:global(html) .idleBody {
+  border: 0;
+  background: var(--surface-well);
+}
+
+:global(html) .idleHint {
+  font-family: inherit;
+  font-size: 12.5px;
+}

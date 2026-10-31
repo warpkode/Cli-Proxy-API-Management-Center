@@ -17,13 +17,13 @@
   gap: $spacing-sm;
   width: 100%;
   min-height: 40px;
-  padding: 0 12px;
+  padding: 0 13px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
-  border-radius: $radius-md;
-  background: var(--bg-primary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control, 11px);
+  background: var(--surface-well, var(--bg-primary));
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 14px;
   text-align: left;
   cursor: pointer;
   transition:
@@ -38,8 +38,8 @@
 
   &:focus-visible {
     outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba($primary-color, 0.18);
+    border-color: var(--border-hover);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 12%, transparent);
   }
 
   &:disabled {
@@ -49,7 +49,7 @@
 
   @media (hover: hover) and (pointer: fine) {
     &:hover:not(:disabled) {
-      border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
+      border-color: var(--border-primary);
     }
   }
 }
@@ -93,7 +93,7 @@
 .meterFill {
   display: block;
   height: 100%;
-  background: color-mix(in srgb, var(--primary-color) 70%, var(--text-primary));
+  background: var(--text-secondary);
   transition: width 360ms var(--ease-out-strong, ease);
 }
 
@@ -125,9 +125,9 @@
   flex-direction: column;
   margin-top: 6px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
-  border-radius: $radius-md;
-  background: var(--bg-secondary);
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-well, var(--bg-secondary));
   transform-origin: top;
   animation: excluded-panel-in var(--dur-hover, 200ms) var(--ease-out-strong, ease-out) both;
 }
@@ -168,12 +168,12 @@
 
 .search {
   width: 100%;
-  padding: 6px 10px 6px 32px;
-  border: 1px solid var(--border-color);
-  border-radius: $radius-sm;
+  padding: 7px 10px 7px 32px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-chip, 9px);
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 13px;
 
   &::placeholder {
     color: var(--text-tertiary);
@@ -181,8 +181,8 @@
 
   &:focus {
     outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba($primary-color, 0.18);
+    border-color: var(--border-hover);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 10%, transparent);
   }
 }
 
@@ -210,7 +210,7 @@
   transition: background-color var(--dur-press, 160ms) var(--ease-out-strong, ease-out);
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: -2px;
   }
 }
@@ -258,7 +258,7 @@
   overflow: hidden;
   color: var(--text-primary);
   font-family: $font-mono;
-  font-size: 12px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -267,22 +267,22 @@
 .rowReason {
   overflow: hidden;
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: 12.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .badge {
   flex-shrink: 0;
-  padding: 2px 6px;
-  border: 1px dashed color-mix(in srgb, var(--primary-color) 38%, var(--border-color));
-  border-radius: $radius-full;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--bg-primary);
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .badgeMuted {
-  border-style: dotted;
   color: var(--text-tertiary);
 }
 
@@ -303,14 +303,14 @@
   align-items: center;
   justify-content: space-between;
   gap: $spacing-sm;
-  padding: 8px 10px;
+  padding: 8px 10px 8px 14px;
   border-top: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  background: transparent;
 }
 
 .footerCount {
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -321,12 +321,13 @@
 }
 
 .footerButton {
-  padding: 4px 8px;
+  padding: 6px 11px;
   border: 0;
-  border-radius: $radius-sm;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
+  border-radius: var(--radius-chip, 9px);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   transition:
     background-color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out),
@@ -338,7 +339,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 1px;
   }
 
@@ -349,7 +350,7 @@
 
   @media (hover: hover) and (pointer: fine) {
     &:hover:not(:disabled) {
-      background: var(--bg-tertiary);
+      background: var(--bg-hover);
       color: var(--text-primary);
     }
   }
@@ -365,22 +366,23 @@
   justify-content: space-between;
   gap: $spacing-sm;
   margin-top: 6px;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: $radius-md;
-  background: var(--bg-secondary);
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-well, var(--bg-secondary));
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .retryButton {
   flex-shrink: 0;
-  padding: 4px 10px;
-  border: 1px solid var(--border-color);
-  border-radius: $radius-sm;
-  background: var(--bg-primary);
+  padding: 6px 11px;
+  border: 0;
+  border-radius: var(--radius-chip, 9px);
+  background: var(--bg-tertiary);
   color: var(--text-primary);
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   transition: transform var(--dur-press, 160ms) var(--ease-out-strong, ease-out);
 

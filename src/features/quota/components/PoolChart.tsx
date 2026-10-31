@@ -1,10 +1,12 @@
 /**
  * Pool time-series chart: solid recorded history up to "Now", dashed projection
- * after it, "+X%" step-up annotations at resets, optional per-account lines.
+ * after it, "+X%" step-up annotations naming the account that refills, amber
+ * markers for reset grants (spent "⟲ +X%" steps and dotted expiry lines).
  *
  * Layout only; the series come from pool/poolView.ts. Hover and keyboard share
  * one cursor that snaps to drawn points (arrow keys step, Shift+arrow jumps
- * about a day, Home/End go to the ends, Escape clears).
+ * about a day, Home/End go to the ends, Escape clears). The readout sits in a
+ * pill at the top right of the plot.
  */
 
 import {
@@ -23,42 +25,43 @@ import { dayTicks, type TimeRange } from '../pool/poolModel';
 import type { SeriesPoint, StepUpEvent } from '../pool/types';
 import styles from './PoolChart.module.scss';
 
-export interface PoolChartAccountLine {
+export interface PoolChartMarker {
+  t: number;
   key: string;
-  color: string;
-  label: string;
-  masked: boolean;
-  recorded: SeriesPoint[];
-  projected: SeriesPoint[];
 }
 
 export interface PoolChartProps {
   range: TimeRange;
   nowMs: number;
   yMax: number;
-  /** Series color (provider hue). Text never takes it. */
+  /** Series color (provider hue, may be a CSS variable). Text never takes it. */
   color: string;
   recorded: SeriesPoint[];
   projected: SeriesPoint[];
   recordedStepUps?: readonly StepUpEvent[];
   projectedStepUps?: readonly StepUpEvent[];
-  accountLines?: readonly PoolChartAccountLine[];
+  /** Short account names under each step label; omit for single-account pools. */
+  stepNames?: (accountIds: readonly string[]) => string;
+  /** Expiry instants of reset grants the projection leaves unspent. */
+  expiryMarkers?: readonly PoolChartMarker[];
   emptyAtMs?: number | null;
   /** Gaps in recorded data longer than this lift the pen. */
   maxGapMs: number;
   /** Legend title: what the line measures. */
   seriesLabel: string;
   formatTick: (value: number) => string;
-  /** Tooltip value, e.g. `398% left` or `3.7%/h`. */
+  /** Readout value, e.g. `398% left` or `3.7%/h`. */
   formatReadout: (value: number) => string;
   ariaLabel: string;
   /** Width used before the first measurement (and in static renders). */
   initialWidth?: number;
+  height?: number;
 }
 
-const HEIGHT = 300;
-const MARGINS = { top: 36, right: 14, bottom: 30, left: 52 };
+const DEFAULT_HEIGHT = 300;
+const MARGINS = { top: 44, right: 6, bottom: 30, left: 50 };
 const DAY_LABEL_MIN_PX = 46;
+const LABEL_LINE_PX = 13;
 
 interface NavPoint extends SeriesPoint {
   kind: 'recorded' | 'projected';
@@ -78,16 +81,6 @@ const nearestIndex = (points: readonly NavPoint[], t: number): number => {
   return t - points[lo - 1].t <= points[lo].t - t ? lo - 1 : lo;
 };
 
-const valueAt = (points: readonly SeriesPoint[], t: number): number | null => {
-  if (points.length === 0 || t < points[0].t || t > points[points.length - 1].t) return null;
-  let best = points[0];
-  for (const point of points) {
-    if (Math.abs(point.t - t) <= Math.abs(best.t - t)) best = point;
-    if (point.t > t) break;
-  }
-  return best.value;
-};
-
 export function PoolChart(props: PoolChartProps) {
   const {
     range,
@@ -98,7 +91,8 @@ export function PoolChart(props: PoolChartProps) {
     projected,
     recordedStepUps = [],
     projectedStepUps = [],
-    accountLines = [],
+    stepNames,
+    expiryMarkers = [],
     emptyAtMs = null,
     maxGapMs,
     seriesLabel,
@@ -106,10 +100,13 @@ export function PoolChart(props: PoolChartProps) {
     formatReadout,
     ariaLabel,
     initialWidth = 960,
+    height = DEFAULT_HEIGHT,
   } = props;
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage;
-  const clipId = `pool-clip-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  const clipId = `pool-clip-${uid}`;
+  const fillId = `pool-fill-${uid}`;
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(initialWidth);
   const [cursor, setCursor] = useState<number | null>(null);
@@ -129,8 +126,8 @@ export function PoolChart(props: PoolChartProps) {
   }, []);
 
   const scale = useMemo(
-    () => createScale(range, yMax, width, HEIGHT, MARGINS),
-    [range, yMax, width]
+    () => createScale(range, yMax, width, height, MARGINS),
+    [range, yMax, width, height]
   );
   const { plot } = scale;
   const plotBottom = plot.top + plot.height;
@@ -149,18 +146,11 @@ export function PoolChart(props: PoolChartProps) {
   // Path strings depend only on data and size, not on the hover cursor.
   const paths = useMemo(
     () => ({
-      recordedArea: areaPath(recorded, scale, maxGapMs),
-      projectedArea: areaPath(projected, scale, maxGapMs),
+      area: areaPath(navPoints, scale, maxGapMs),
       recordedLine: linePath(recorded, scale, maxGapMs),
       projectedLine: linePath(projected, scale, maxGapMs),
-      accounts: accountLines.map((line) => ({
-        key: line.key,
-        color: line.color,
-        recorded: linePath(line.recorded, scale, maxGapMs),
-        projected: linePath(line.projected, scale, maxGapMs),
-      })),
     }),
-    [recorded, projected, accountLines, scale, maxGapMs]
+    [navPoints, recorded, projected, scale, maxGapMs]
   );
 
   const days = useMemo(() => dayTicks(range), [range]);
@@ -175,19 +165,22 @@ export function PoolChart(props: PoolChartProps) {
 
   const stepLabels = useMemo(() => {
     const format = (amount: number) => `+${formatPercent(amount)}`;
+    const minGapPx = stepNames ? 62 : 38;
     return [
       ...placeStepLabels(recordedStepUps, recorded, scale, {
         minAmount: 5,
-        minGapPx: 34,
+        minGapPx,
         format,
+        maxLevel: 1,
       }),
       ...placeStepLabels(projectedStepUps, projected, scale, {
         minAmount: 1,
-        minGapPx: 34,
+        minGapPx,
         format,
+        maxLevel: 2,
       }),
     ];
-  }, [recordedStepUps, projectedStepUps, recorded, projected, scale]);
+  }, [recordedStepUps, projectedStepUps, recorded, projected, scale, stepNames]);
 
   const yTicks = [0, yMax / 2, yMax];
   const hover =
@@ -241,7 +234,6 @@ export function PoolChart(props: PoolChartProps) {
       ? t('quota_management.pool_tooltip_recorded')
       : t('quota_management.pool_tooltip_projected');
 
-  const tooltipOnLeft = hoverX > width * 0.62;
   const emptyX = emptyAtMs !== null ? scale.x(emptyAtMs) : null;
   const emptyVisible = emptyAtMs !== null && emptyAtMs >= range.startMs && emptyAtMs <= range.endMs;
 
@@ -264,8 +256,8 @@ export function PoolChart(props: PoolChartProps) {
         <svg
           className={styles.svg}
           width={width}
-          height={HEIGHT}
-          viewBox={`0 0 ${width} ${HEIGHT}`}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
           aria-hidden="true"
           focusable="false"
         >
@@ -273,6 +265,10 @@ export function PoolChart(props: PoolChartProps) {
             <clipPath id={clipId}>
               <rect x={plot.left} y={plot.top - 2} width={plot.width} height={plot.height + 4} />
             </clipPath>
+            <linearGradient id={fillId} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" style={{ stopColor: color }} className={styles.fillTop} />
+              <stop offset="1" style={{ stopColor: color }} className={styles.fillBottom} />
+            </linearGradient>
           </defs>
 
           {days.map((day, index) => {
@@ -303,7 +299,7 @@ export function PoolChart(props: PoolChartProps) {
               />
               <text
                 className={styles.tickLabel}
-                x={plot.left - 8}
+                x={plot.left - 12}
                 y={scale.y(value)}
                 dominantBaseline="middle"
               >
@@ -312,26 +308,29 @@ export function PoolChart(props: PoolChartProps) {
             </g>
           ))}
 
+          {expiryMarkers.map((marker) => {
+            const x = scale.x(marker.t);
+            return (
+              <line
+                key={marker.key}
+                className={styles.expiryLine}
+                x1={x}
+                x2={x}
+                y1={plot.top}
+                y2={plotBottom}
+                strokeDasharray="2 4"
+              />
+            );
+          })}
+
           <g clipPath={`url(#${clipId})`}>
-            <path className={styles.area} d={paths.recordedArea} fill={color} />
-            <path className={styles.area} d={paths.projectedArea} fill={color} />
-            {paths.accounts.map((line) => (
-              <g key={line.key}>
-                <path className={styles.accountRecorded} d={line.recorded} stroke={line.color} />
-                <path
-                  className={styles.accountProjected}
-                  d={line.projected}
-                  stroke={line.color}
-                  strokeDasharray="3 4"
-                />
-              </g>
-            ))}
-            <path className={styles.recorded} d={paths.recordedLine} stroke={color} />
+            <path className={styles.area} d={paths.area} fill={`url(#${fillId})`} />
+            <path className={styles.recorded} d={paths.recordedLine} style={{ stroke: color }} />
             <path
               className={styles.projected}
               d={paths.projectedLine}
-              stroke={color}
-              strokeDasharray="6 5"
+              style={{ stroke: color }}
+              strokeDasharray="6 6"
             />
           </g>
 
@@ -342,28 +341,49 @@ export function PoolChart(props: PoolChartProps) {
                 x1={scale.x(nowMs)}
                 x2={scale.x(nowMs)}
                 y1={plot.top - 14}
-                y2={plotBottom + 6}
+                y2={plotBottom}
               />
               <text className={styles.nowLabel} x={scale.x(nowMs)} y={plot.top - 20}>
                 {t('quota_management.pool_now')}
               </text>
-              {liveValue !== null && (
-                <circle
-                  className={styles.dot}
-                  cx={scale.x(nowMs)}
-                  cy={scale.y(liveValue)}
-                  r={4}
-                  fill={color}
-                />
-              )}
             </g>
           )}
 
-          {stepLabels.map((label) => (
-            <text key={label.key} className={styles.stepLabel} x={label.x} y={label.y}>
-              {label.text}
-            </text>
-          ))}
+          {stepLabels.map((label) => {
+            const grant = label.event.kind === 'grant';
+            const name = stepNames ? stepNames(label.event.accountIds) : '';
+            const lines = name ? 2 : 1;
+            const base = Math.max(
+              12 + (lines - 1) * LABEL_LINE_PX,
+              label.y - label.level * (lines * LABEL_LINE_PX + 4)
+            );
+            return (
+              <g key={label.key} className={grant ? styles.grantStep : undefined}>
+                <text
+                  className={styles.stepLabel}
+                  x={label.x}
+                  y={base - (lines - 1) * LABEL_LINE_PX}
+                >
+                  {grant ? `⟲ ${label.text}` : label.text}
+                </text>
+                {name && (
+                  <text className={styles.stepName} x={label.x} y={base}>
+                    {name}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          {nowInRange && liveValue !== null && (
+            <circle
+              className={styles.dot}
+              cx={scale.x(nowMs)}
+              cy={scale.y(liveValue)}
+              r={4.5}
+              style={{ fill: color }}
+            />
+          )}
 
           {emptyVisible && emptyX !== null && (
             <g>
@@ -372,7 +392,7 @@ export function PoolChart(props: PoolChartProps) {
                 cx={emptyX}
                 cy={scale.y(0)}
                 r={5}
-                stroke={color}
+                style={{ stroke: color }}
               />
               <text
                 className={styles.emptyLabel}
@@ -394,51 +414,24 @@ export function PoolChart(props: PoolChartProps) {
                 x2={hoverX}
                 y1={plot.top}
                 y2={plotBottom}
+                style={{ stroke: color }}
               />
               <circle
                 className={styles.dot}
                 cx={hoverX}
                 cy={scale.y(hover.value)}
-                r={4}
-                fill={color}
+                r={4.5}
+                style={{ fill: color }}
               />
             </g>
           )}
         </svg>
 
-        <div
-          role="status"
-          className={hover ? styles.tooltip : styles.srOnly}
-          style={
-            hover
-              ? {
-                  left: hoverX,
-                  top: plot.top,
-                  transform: tooltipOnLeft ? 'translateX(calc(-100% - 10px))' : 'translateX(10px)',
-                }
-              : undefined
-          }
-        >
+        <div role="status" className={hover ? styles.readout : styles.srOnly}>
           {hover && (
             <>
-              <div className={styles.tooltipHead}>
-                {formatInstant(hover.t, nowMs, locale)} ·{' '}
-                <strong>{formatReadout(hover.value)}</strong> · {readoutKind(hover.kind)}
-              </div>
-              {accountLines.map((line) => {
-                const series = hover.kind === 'recorded' ? line.recorded : line.projected;
-                const value = valueAt(series, hover.t);
-                if (value === null) return null;
-                return (
-                  <div key={line.key} className={styles.tooltipRow}>
-                    <span className={styles.lineKey} style={{ background: line.color }} />
-                    <span className={line.masked ? styles.masked : styles.tooltipLabel}>
-                      {line.label}
-                    </span>
-                    <span className={styles.tooltipValue}>{formatPercent(value)}</span>
-                  </div>
-                );
-              })}
+              {formatInstant(hover.t, nowMs, locale)} · {formatReadout(hover.value)} ·{' '}
+              {readoutKind(hover.kind)}
             </>
           )}
         </div>
@@ -447,40 +440,40 @@ export function PoolChart(props: PoolChartProps) {
       <div className={styles.legend}>
         <span className={styles.legendTitle}>{seriesLabel}</span>
         <span className={styles.legendItem}>
-          <svg width="18" height="8" aria-hidden="true" focusable="false">
-            <line x1="1" x2="17" y1="4" y2="4" stroke={color} className={styles.keyRecorded} />
+          <svg width="20" height="8" aria-hidden="true" focusable="false">
+            <line x1="1" x2="19" y1="4" y2="4" style={{ stroke: color }} className={styles.key} />
           </svg>
           {t('quota_management.pool_legend_recorded')}
         </span>
         <span className={styles.legendItem}>
-          <svg width="18" height="8" aria-hidden="true" focusable="false">
+          <svg width="20" height="8" aria-hidden="true" focusable="false">
             <line
               x1="1"
-              x2="17"
+              x2="19"
               y1="4"
               y2="4"
-              stroke={color}
+              style={{ stroke: color }}
               strokeDasharray="4 3"
-              className={styles.keyProjected}
+              className={styles.key}
             />
           </svg>
           {t('quota_management.pool_legend_projected')}
         </span>
-        {accountLines.map((line) => (
-          <span key={line.key} className={styles.legendItem}>
-            <svg width="18" height="8" aria-hidden="true" focusable="false">
+        {expiryMarkers.length > 0 && (
+          <span className={styles.legendItem}>
+            <svg width="20" height="8" aria-hidden="true" focusable="false">
               <line
                 x1="1"
-                x2="17"
+                x2="19"
                 y1="4"
                 y2="4"
-                stroke={line.color}
-                className={styles.keyAccount}
+                strokeDasharray="2 3"
+                className={`${styles.key} ${styles.keyExpiry}`}
               />
             </svg>
-            <span className={line.masked ? styles.masked : undefined}>{line.label}</span>
+            {t('quota_management.pool_legend_reset_expiry')}
           </span>
-        ))}
+        )}
       </div>
     </div>
   );

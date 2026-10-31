@@ -150,11 +150,13 @@ export function AuthFileCard(props: AuthFileCardProps) {
         <h3 className={styles.identity}>
           <span
             className={styles.providerBadge}
-            style={{
-              backgroundColor: typeColor.bg,
-              color: typeColor.text,
-              ...(typeColor.border ? { border: typeColor.border } : {}),
-            }}
+            data-provider={providerKey}
+            style={
+              {
+                '--badge-bg': typeColor.bg,
+                '--badge-text': typeColor.text,
+              } as CSSProperties
+            }
           >
             {typeLabel}
           </span>

@@ -27,15 +27,15 @@
 }
 
 .legendValue {
-  font-weight: 650;
+  font-weight: 500;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
 
 .legendSwatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   flex: none;
 }
 
@@ -71,7 +71,7 @@
   position: absolute;
   right: 0;
   transform: translateY(-50%);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -190,8 +190,8 @@
   left: 50%;
   transform: translateX(-50%);
   margin-bottom: 6px;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -227,13 +227,11 @@
   gap: 3px;
   padding: $spacing-sm $spacing-md;
   min-width: 132px;
-  border-radius: $radius-md;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  -webkit-backdrop-filter: var(--glass-backdrop-filter);
-  box-shadow: var(--shadow-lg);
-  font-size: 12px;
+  border-radius: 9px;
+  border: 0;
+  background: var(--floating-surface);
+  box-shadow: var(--floating-shadow);
+  font-size: 13px;
   color: var(--text-secondary);
   pointer-events: none;
   /* 悬停换柱时滑到新位置（可中断，CSS transition 自然 retarget），入场只淡入 */
@@ -252,7 +250,7 @@
 }
 
 .tooltipTime {
-  font-weight: 650;
+  font-weight: 500;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
@@ -292,7 +290,7 @@
 .xTick {
   position: absolute;
   transform: translateX(-50%);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -320,7 +318,7 @@
 
   thead th {
     color: var(--text-tertiary);
-    font-weight: 600;
+    font-weight: 400;
     white-space: nowrap;
   }
 
@@ -338,16 +336,16 @@
   flex-direction: column;
   gap: $spacing-xs;
   padding: $spacing-xl;
-  border-radius: $radius-lg;
-  border: 1px dashed var(--border-primary);
-  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
+  border-radius: 14px;
+  border: 0;
+  background: var(--surface-well, var(--bg-tertiary));
   text-align: center;
 }
 
 .placeholderTitle {
   margin: 0;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
 }
 

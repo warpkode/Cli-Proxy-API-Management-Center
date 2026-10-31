@@ -11,11 +11,11 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  min-height: 66px;
-  padding: 12px 14px 12px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--border-color);
-  background: color-mix(in srgb, var(--bg-primary) 82%, transparent);
+  min-height: 70px;
+  padding: 14px 16px 14px 14px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: var(--bg-primary);
   transition:
     transform var(--dur-press, 160ms) var(--ease-out-strong, ease-out),
     border-color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out),
@@ -38,7 +38,7 @@
 
 /* 进行中的磁贴边框略加深：扫一眼就能找到「还没完成」的那个 */
 .tile[data-status='waiting'] {
-  border-color: color-mix(in srgb, var(--text-primary) 24%, var(--border-color));
+  border-color: var(--border-hover);
 }
 
 /* ---------- 图标 ---------- */
@@ -50,7 +50,7 @@
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+  background: var(--surface-well);
   color: var(--text-secondary);
   flex-shrink: 0;
 }
@@ -78,8 +78,8 @@
   display: block;
   max-width: 100%;
   text-align: left;
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 500;
   line-height: 1.3;
   letter-spacing: -0.01em;
   color: var(--text-primary);
@@ -88,7 +88,7 @@
     content: '';
     position: absolute;
     inset: 0;
-    border-radius: 14px;
+    border-radius: 16px;
   }
 
   &:focus {
@@ -96,7 +96,7 @@
   }
 
   &:focus-visible::after {
-    outline: 2px solid var(--primary-color);
+    outline: 2px solid var(--text-primary);
     outline-offset: 2px;
   }
 }
@@ -106,11 +106,9 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  font-family: $font-mono;
-  font-size: 11.5px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 400;
   line-height: 1.4;
-  letter-spacing: 0.02em;
   color: var(--text-tertiary);
   white-space: nowrap;
 }
@@ -147,11 +145,11 @@
 }
 
 .tile[data-status='success'] .status {
-  color: var(--viz-success);
+  color: var(--success-color);
 }
 
 .tile[data-status='error'] .status {
-  color: var(--viz-failure);
+  color: var(--error-color);
 }
 
 @keyframes oauth-dot-breathe {
@@ -166,11 +164,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 1px solid var(--border-color);
-  color: var(--text-tertiary);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-chip, 9px);
+  border: 1px solid transparent;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   transition:
     background-color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out),
     border-color var(--dur-hover, 200ms) var(--ease-out-strong, ease-out),
@@ -179,15 +178,12 @@
 
 @media (hover: hover) and (pointer: fine) {
   .tile:hover {
-    transform: translateY(-1px);
-    border-color: var(--border-hover);
-    box-shadow: 0 12px 26px -16px rgb(0 0 0 / 0.18);
+    background: color-mix(in srgb, var(--bg-primary) 70%, var(--bg-tertiary));
   }
 
   .tile:hover .trail {
-    background: var(--text-primary);
-    border-color: var(--text-primary);
-    color: var(--bg-secondary);
+    background: var(--primary-color);
+    color: var(--primary-contrast);
   }
 
   .tile:active {

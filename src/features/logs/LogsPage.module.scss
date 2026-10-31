@@ -5,7 +5,7 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
   min-width: 0;
   min-height: 0;
 }
@@ -21,40 +21,40 @@
 .pageTitle {
   margin: 0;
   color: var(--text-primary);
-  font-size: 28px;
-  line-height: 1.3;
-  font-weight: 700;
-  letter-spacing: -0.025em;
+  font-size: var(--page-title-size, 24px);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
 
 .tabBar {
   display: inline-flex;
-  gap: 4px;
+  gap: 2px;
   padding: 3px;
-  border-radius: 10px;
-  background: var(--bg-tertiary);
+  border-radius: var(--radius-control, 11px);
+  background: var(--surface-well, var(--bg-tertiary));
 }
 
 .tabItem {
   @include button-reset;
-  padding: 8px 14px;
-  border-radius: 7px;
+  padding: 6px 12px;
+  border-radius: var(--radius-chip, 9px);
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
 }
 
 .tabActive {
-  background: var(--bg-primary);
+  background: var(--surface-selected, var(--bg-primary));
   color: var(--text-primary);
-  box-shadow: 0 1px 3px var(--border-color);
+  font-weight: 600;
 }
 
 .container button:focus-visible,
 .structuredFilters button:focus-visible,
 .logPanel:focus-visible {
-  outline: 2px solid var(--primary-color);
+  outline: 2px solid var(--text-primary);
   outline-offset: -2px;
 }
 
@@ -77,8 +77,8 @@
   min-height: 0;
   overflow: hidden;
   padding: 0;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border: 0;
+  border-radius: var(--radius-card, 18px);
   background: var(--bg-primary);
   box-shadow: none;
 }
@@ -89,7 +89,7 @@
   > :global(.error-box),
   > :global(.status-badge) {
     flex: none;
-    margin: 8px 12px;
+    margin: 14px 16px 0;
     max-height: 15vh;
     overflow: auto;
   }
@@ -100,8 +100,8 @@
   align-items: center;
   flex: none;
   flex-wrap: wrap;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 16px 16px 14px;
   border-bottom: 1px solid var(--border-color);
 
   :global(.form-group) {
@@ -121,11 +121,11 @@
   box-sizing: border-box;
   height: var(--log-control-height);
   min-height: var(--log-control-height);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
-  font-size: 13px;
-  font-weight: 500;
+  border-radius: var(--radius-control, 11px);
+  border: 1px solid transparent;
+  background: var(--surface-well, var(--bg-primary));
+  font-size: 14px;
+  font-weight: 400;
   line-height: 1;
   box-shadow: none;
 }
@@ -177,10 +177,10 @@
 
 .filterPanelCount {
   padding: 1px 6px;
-  border-radius: 5px;
-  background: var(--bg-tertiary);
-  color: var(--primary-color);
-  font-size: 11px;
+  border-radius: 6px;
+  background: var(--surface-selected, var(--bg-tertiary));
+  color: var(--text-primary);
+  font-size: 12px;
 }
 
 .toolbar {
@@ -200,9 +200,9 @@
     display: flex;
   }
   &[aria-pressed='true'] {
-    color: var(--primary-color);
-    border-color: var(--primary-color);
-    background: color-mix(in srgb, var(--primary-color) 10%, var(--bg-primary));
+    color: var(--text-primary);
+    border-color: transparent;
+    background: var(--surface-selected, var(--bg-tertiary));
   }
 }
 
@@ -238,8 +238,8 @@
   gap: 8px;
 }
 .filterChipLabel {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 .filterChipList {
@@ -253,12 +253,12 @@
 }
 .filterChip {
   @include button-reset;
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  padding: 6px 11px;
+  border-radius: var(--radius-chip, 9px);
+  border: 1px solid transparent;
+  background: var(--surface-well, var(--bg-primary));
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -268,9 +268,9 @@
   }
 }
 .filterChipActive {
-  color: var(--primary-color);
-  border-color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 8%, var(--bg-primary));
+  color: var(--text-primary);
+  background: var(--surface-selected, var(--bg-tertiary));
+  font-weight: 500;
 }
 
 .viewerArea {
@@ -299,13 +299,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px 20px;
-  padding: 7px 12px;
+  padding: 9px 16px;
   border-top: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  font-size: 11px;
+  color: var(--text-tertiary);
+  font-size: 12.5px;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
-  background: var(--bg-secondary);
+  background: transparent;
 }
 .readStatus {
   display: flex;
@@ -351,11 +351,11 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 7px 16px;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-secondary);
-  font-size: 11px;
-  background: var(--bg-secondary);
+  font-size: 12.5px;
+  background: transparent;
 }
 .loadMoreStats {
   display: flex;
@@ -460,9 +460,9 @@
 }
 .requestIdBadge {
   font-family: inherit;
-  color: var(--primary-color);
-  background: transparent;
-  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: 0;
   cursor: pointer;
 }
 .statusSuccess {
@@ -471,8 +471,8 @@
 }
 .statusInfo,
 .levelInfo {
-  color: var(--info-color);
-  background: color-mix(in srgb, var(--info-color) 8%, transparent);
+  color: var(--brand-codex, var(--info-color));
+  background: color-mix(in srgb, var(--brand-codex, var(--info-color)) 12%, transparent);
 }
 .statusWarn,
 .levelWarn {
@@ -487,7 +487,7 @@
 .levelDebug,
 .levelTrace {
   color: var(--text-secondary);
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
 }
 .statusBadge {
   font-variant-numeric: tabular-nums;
@@ -496,7 +496,7 @@
   color: var(--text-primary);
 }
 .path {
-  font-weight: 600;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 .message {
@@ -520,7 +520,7 @@
 }
 
 .errorCard {
-  padding: 16px;
+  padding: 20px 22px;
 }
 .errorBody {
   gap: 12px;
@@ -561,9 +561,9 @@
   padding: 12px;
   max-height: 58dvh;
   overflow: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-secondary);
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-well, var(--bg-secondary));
   color: var(--text-primary);
   white-space: pre;
 }
@@ -588,7 +588,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .logRow:hover {
-    background: color-mix(in srgb, var(--primary-color) 5%, var(--bg-primary));
+    background: color-mix(in srgb, var(--text-primary) 4%, var(--bg-primary));
   }
   .copyButton {
     opacity: 0;
@@ -601,7 +601,7 @@
     color: var(--text-primary);
   }
   .filterChip:hover:not(:disabled) {
-    border-color: var(--primary-color);
+    color: var(--text-primary);
   }
 }
 
@@ -623,11 +623,11 @@
     gap: 8px 12px;
   }
   .pageTitle {
-    font-size: 18px;
+    font-size: 20px;
   }
   .tabItem {
-    padding: 6px 8px;
-    font-size: 12px;
+    padding: 6px 10px;
+    font-size: 13px;
   }
   .filters {
     padding: 12px;

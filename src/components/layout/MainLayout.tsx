@@ -32,7 +32,6 @@ import {
   IconSidebarSystem,
   IconChevronDown,
 } from '@/components/ui/icons';
-import { INLINE_LOGO_JPEG } from '@/assets/logoInline';
 import {
   useAuthStore,
   useLoginTransitionStore,
@@ -353,7 +352,6 @@ export function MainLayout() {
   const headerRef = useRef<HTMLElement | null>(null);
 
   const fullBrandName = 'CLI Proxy API Management Center';
-  const abbrBrandName = t('title.abbr');
   const arrivingFromLogin = useLoginTransitionStore((state) => state.phase === 'revealing');
   const isLogsPage = location.pathname.startsWith('/logs');
   const isPluginResourcePage = location.pathname.startsWith('/plugin-pages');
@@ -1162,11 +1160,14 @@ export function MainLayout() {
         >
           <div className="sidebar-header">
             <div className="sidebar-brand" title={fullBrandName}>
-              <img src={INLINE_LOGO_JPEG} alt="CPAMC logo" className="sidebar-brand-logo" />
+              <span className="sidebar-brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                  <path d="M4 7h11M4 12h16M4 17h11" strokeLinecap="round" />
+                </svg>
+              </span>
               {showSidebarLabels && (
                 <span className="sidebar-brand-text">
-                  <span className="sidebar-brand-title">{abbrBrandName}</span>
-                  <span className="sidebar-brand-subtitle">{t('sidebar.subtitle')}</span>
+                  <span className="sidebar-brand-title">{t('splash.title')}</span>
                 </span>
               )}
             </div>

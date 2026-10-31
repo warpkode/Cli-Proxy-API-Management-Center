@@ -182,3 +182,13 @@ export function accountLabel(file: AuthFileItem, showEmails: boolean): AccountLa
   });
   return { text, masked };
 }
+
+const EMAIL_SHAPE = /^[^\s@/\\]+@[^\s@/\\]+\.[^\s@/\\]+$/;
+
+/** Short name for tight spots (chart labels, stats): an email's local part. */
+export function accountShortLabel(file: AuthFileItem, showEmails: boolean): AccountLabel {
+  const base = file.email?.trim() || file.label?.trim() || file.name;
+  if (!EMAIL_SHAPE.test(base)) return accountLabel(file, showEmails);
+  const local = base.slice(0, base.lastIndexOf('@'));
+  return showEmails ? { text: local, masked: false } : { text: maskPart(local), masked: true };
+}

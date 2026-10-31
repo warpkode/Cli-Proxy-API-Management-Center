@@ -1,18 +1,18 @@
 @use '../../../styles/mixins' as *;
 
 /* ============================================================
- * OAuth 配置双卡（排除模型 / 模型别名）共用外衣：panel 配方
- * （16px 圆角 / 1px 边框 / 82% 透感纸面），列表行走 mono 遥测。
+ * OAuth 配置双卡（排除模型 / 模型别名）共用外衣：平面卡
+ * （18px 圆角 / 无边框 / 卡面色），列表行以细分隔线排列。
  * ============================================================ */
 
 .panel {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: clamp(16px, 2vw, 20px);
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
-  background: color-mix(in srgb, var(--bg-primary) 82%, transparent);
+  padding: 22px 24px;
+  border-radius: var(--radius-card, 18px);
+  border: 0;
+  background: var(--bg-primary);
 }
 
 .panelHead {
@@ -25,8 +25,8 @@
 
 .panelTitle {
   margin: 0;
-  font-size: 15px;
-  font-weight: 650;
+  font-size: 17px;
+  font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--text-primary);
 }
@@ -51,10 +51,24 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 2px;
-  border-radius: $radius-md;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  padding: 3px;
+  border-radius: var(--radius-control, 11px);
+  border: 0;
+  background: var(--surface-well, var(--bg-secondary));
+
+  :global(.btn) {
+    padding: 5px 11px;
+    border-radius: var(--radius-chip, 9px);
+    font-weight: 500;
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  :global(.btn[aria-pressed='true']) {
+    background: var(--surface-selected, var(--bg-tertiary));
+    color: var(--text-primary);
+    font-weight: 600;
+  }
 }
 
 /* ---------- provider 行 ---------- */
@@ -62,7 +76,7 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  border-top: 1px solid var(--border-color);
 }
 
 .item {
@@ -70,19 +84,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 9px 12px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
-  background: color-mix(in srgb, var(--bg-secondary) 45%, transparent);
-  transition:
-    background-color $transition-fast,
-    border-color $transition-fast;
-}
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
 
-@media (hover: hover) and (pointer: fine) {
-  .item:hover {
-    border-color: var(--border-hover);
-    background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+  &:last-child {
+    border-bottom: 0;
   }
 }
 
@@ -94,15 +102,14 @@
 }
 
 .itemProvider {
-  font-family: $font-mono;
-  font-size: 12.5px;
-  font-weight: 650;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-primary);
   @include text-ellipsis;
 }
 
 .itemCount {
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--text-tertiary);
 }
 
@@ -131,12 +138,9 @@
 
 .aliasChartTitle {
   margin: 0;
-  font-family: $font-mono;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--text-secondary);
 }
 
 .aliasChart {

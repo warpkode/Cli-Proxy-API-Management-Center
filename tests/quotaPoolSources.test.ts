@@ -372,7 +372,8 @@ describe('polling contract: the pool view only reads hub caches', () => {
       'src/features/quota/components/PoolCard.tsx',
       'src/features/quota/components/PoolChart.tsx',
       'src/features/quota/components/PoolControls.tsx',
-      'src/features/quota/components/PoolAccountsTable.tsx',
+      'src/features/quota/components/PoolAccountRows.tsx',
+      'src/features/quota/components/ResetsCard.tsx',
       ...readdirSync(poolDir).map((name) => `${poolDir}/${name}`),
     ];
     for (const path of passive) {

@@ -15,8 +15,8 @@
 }
 
 .label {
-  font-size: 12px;
-  color: var(--muted-foreground);
+  font-size: 13.5px;
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
@@ -26,9 +26,9 @@
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  border-radius: var(--radius-chip, 9px);
+  border: 1px solid transparent;
+  background: var(--surface-well);
   color: var(--text-secondary);
   cursor: pointer;
   transition:
@@ -51,9 +51,9 @@
   gap: 6px;
   height: 30px;
   padding: 0 11px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  border-radius: var(--radius-chip, 9px);
+  border: 1px solid transparent;
+  background: var(--surface-well);
   color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
@@ -62,8 +62,7 @@
     border-color $transition-fast;
 
   &:hover:not(:disabled) {
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    border-color: var(--border-primary);
   }
 
   &:disabled {
@@ -79,10 +78,10 @@
   min-width: 220px;
   max-width: 320px;
   z-index: $z-dropdown;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  background: var(--floating-surface);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: var(--floating-shadow);
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -97,17 +96,17 @@
 }
 
 .filterToolbarBtn {
-  padding: 3px 9px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  padding: 4px 9px;
+  border-radius: 7px;
+  border: 0;
+  background: var(--bg-tertiary);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 12.5px;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   &:disabled {
@@ -135,11 +134,11 @@
 }
 
 .filterItem {
-  padding: 4px 6px;
-  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  border-radius: 7px;
 
   &:hover {
-    background: var(--bg-tertiary);
+    background: var(--bg-hover);
   }
 }
 

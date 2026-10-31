@@ -1,9 +1,10 @@
-/* Pool chart: hairline recessive grid, 2px lines, ~10% area wash, text in text tokens. */
+/* Pool chart: hairline recessive grid, 2px lines, a soft provider-tinted fade,
+ * text in text tokens. Reset grants are the only amber marks. */
 
 .chart {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -16,8 +17,8 @@
   touch-action: pan-y;
 
   &:focus-visible {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
+    outline: 2px solid var(--text-secondary);
+    outline-offset: 4px;
   }
 }
 
@@ -29,19 +30,15 @@
 
 .gridLine,
 .dayLine {
-  stroke: var(--border-color);
+  stroke: var(--surface-hairline, var(--border-color));
   stroke-width: 1;
   shape-rendering: crispEdges;
-}
-
-.dayLine {
-  opacity: 0.55;
 }
 
 .tickLabel,
 .axisLabel {
   fill: var(--text-tertiary);
-  font-size: 11px;
+  font-size: 12.5px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -53,61 +50,77 @@
   text-anchor: middle;
 }
 
+.fillTop {
+  stop-opacity: 0.22;
+}
+
+.fillBottom {
+  stop-opacity: 0;
+}
+
 .area {
-  opacity: 0.1;
   stroke: none;
 }
 
 .recorded,
-.projected,
-.accountRecorded,
-.accountProjected {
+.projected {
   fill: none;
+  stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
 
-.recorded {
-  stroke-width: 2;
-}
-
 /* Dash patterns are presentation attributes, so they survive forced colors. */
 .projected {
-  stroke-width: 2;
   stroke-linecap: butt;
-}
-
-.accountRecorded {
-  stroke-width: 1.5;
-  opacity: 0.9;
-}
-
-.accountProjected {
-  stroke-width: 1.5;
-  stroke-linecap: butt;
-  opacity: 0.85;
 }
 
 .nowLine {
-  stroke: var(--text-tertiary);
+  stroke: var(--border-hover);
   stroke-width: 1;
   shape-rendering: crispEdges;
 }
 
+.expiryLine {
+  stroke: var(--accent-amber);
+  stroke-opacity: 0.75;
+  stroke-width: 1.25;
+}
+
 .nowLabel,
 .stepLabel,
+.stepName,
 .emptyLabel {
-  font-size: 11px;
+  font-size: 12.5px;
   text-anchor: middle;
   font-variant-numeric: tabular-nums;
 }
 
 .nowLabel {
-  fill: var(--text-tertiary);
+  fill: var(--text-secondary);
 }
 
 .stepLabel {
   fill: var(--text-secondary);
+}
+
+.stepName {
+  fill: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.grantStep .stepLabel {
+  fill: var(--accent-amber-text);
+}
+
+/* A halo keeps labels legible where they cross the line or the fill. */
+.stepLabel,
+.stepName,
+.emptyLabel {
+  paint-order: stroke;
+  stroke: var(--bg-primary);
+  stroke-width: 4px;
+  stroke-linejoin: round;
 }
 
 .emptyLabel {
@@ -118,7 +131,7 @@
 /* Surface ring keeps markers legible where they cross a line. */
 .dot {
   stroke: var(--bg-primary);
-  stroke-width: 2;
+  stroke-width: 2.5;
 }
 
 .emptyMarker {
@@ -127,114 +140,71 @@
 }
 
 .crosshair {
-  stroke: var(--text-tertiary);
   stroke-width: 1;
+  stroke-opacity: 0.6;
   shape-rendering: crispEdges;
-}
-
-.tooltip {
-  position: absolute;
-  z-index: 2;
-  max-width: 320px;
-  padding: 8px 10px;
-  border: 1px solid var(--border-primary);
-  border-radius: 8px;
-  background: var(--floating-surface);
-  box-shadow: var(--floating-shadow);
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.45;
   pointer-events: none;
 }
 
-.tooltipHead {
-  white-space: nowrap;
-
-  strong {
-    color: var(--text-primary);
-    font-size: 13px;
-    font-weight: 650;
-    font-variant-numeric: tabular-nums;
-  }
-}
-
-.tooltipRow {
-  display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-}
-
-.tooltipLabel {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tooltipValue {
+.readout {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 7px 11px;
+  border-radius: 9px;
+  background: var(--floating-surface);
   color: var(--text-primary);
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
-}
-
-.lineKey {
-  width: 12px;
-  height: 2px;
-  border-radius: 1px;
-}
-
-.masked {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  filter: blur(3px);
-  user-select: none;
-}
-
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 18px;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-}
-
-.legendTitle {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.legendItem {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-
-.keyRecorded,
-.keyProjected,
-.keyAccount {
-  stroke-width: 2;
+  pointer-events: none;
 }
 
 .srOnly {
   position: absolute;
   width: 1px;
   height: 1px;
-  padding: 0;
-  margin: -1px;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  clip: rect(0 0 0 0);
   white-space: nowrap;
-  border: 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.legendTitle {
+  color: var(--text-secondary);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.key {
+  stroke-width: 2;
+}
+
+.keyExpiry {
+  stroke: var(--accent-amber);
 }
 
 @media (forced-colors: active) {
   .recorded,
   .projected,
-  .accountRecorded,
-  .accountProjected {
-    stroke: CanvasText;
+  .key {
+    stroke: CanvasText !important;
+  }
+
+  .expiryLine,
+  .keyExpiry {
+    stroke: Mark;
   }
 }
