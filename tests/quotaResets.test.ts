@@ -342,8 +342,14 @@ describe('grants in the pool projection and on the page', () => {
     };
     // The off credit outlives "soon": the scheduler refuses, so nothing is projected.
     expect(offUntil(NOW + DAY)).toMatchObject({ kind: 'unused', reason: 'expired' });
-    // Once the off credit is gone, "soon" is consumed as usual.
+    // Once the off credit is gone, "soon" is consumed as usual: before it is due,
+    // or as soon as the block ends inside its last ten minutes.
     expect(offUntil(NOW + 20 * 60_000)).toMatchObject({ kind: 'spent' });
+    expect(offUntil(NOW + 55 * 60_000)).toEqual({
+      kind: 'spent',
+      atMs: NOW + 55 * 60_000,
+      amount: expect.any(Number),
+    });
     const markup = renderToStaticMarkup(
       createElement(ResetsCard, {
         resets: {

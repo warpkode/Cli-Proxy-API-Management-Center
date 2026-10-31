@@ -524,6 +524,15 @@ export function simulatePool(
     }
   };
 
+  /** `limit` grants that start at `atMs` on an account that is already dry. */
+  const fireStarted = (atMs: number) => {
+    for (const grant of grants) {
+      if (grant.startsAtMs !== atMs || grant.policy !== 'limit') continue;
+      const entry = byId.get(grant.accountId);
+      if (entry && entry.remaining <= EPSILON) spendGrant(grant, atMs);
+    }
+  };
+
   /** A waiting grant that reached its expiry unspent. */
   const expireWaiting = (atMs: number) => {
     for (const grant of grants) {
@@ -563,6 +572,8 @@ export function simulatePool(
       grants.forEach((grant) => {
         if (grant.retrying) consider(grant.expiresAtMs);
         else if (grant.spent === 0 && grant.left > 0) consider(grant.dueAtMs);
+        // A grant that starts (or stops being blocked) later is re-checked then.
+        if (grant.left > 0 && grant.policy !== 'off') consider(grant.startsAtMs);
       });
       const hasEvent = Number.isFinite(nextEvent);
       spend(cursor, hasEvent ? nextEvent : stepEnd);
@@ -589,6 +600,7 @@ export function simulatePool(
       }
       expireWaiting(at);
       fireDueGrants(at);
+      fireStarted(at);
       cursor = at;
       if (cursor >= stepEnd) break;
     }

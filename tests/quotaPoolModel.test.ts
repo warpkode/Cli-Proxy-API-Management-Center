@@ -502,6 +502,27 @@ describe('reset grants in the projection', () => {
     expect(result.pool[result.pool.length - 1]).toEqual({ t: NOW + 15 * 60_000, value: 85 });
   });
 
+  test('a grant that only becomes usable later is re-checked when it does', () => {
+    // Due at +50 min, expiring at +60 min, usable from +55 min (e.g. an off credit expires).
+    const due = run([
+      grant({
+        requiresLimit: false,
+        expiresAtMs: NOW + HOUR,
+        startsAtMs: NOW + 55 * 60_000,
+      }),
+    ]);
+    expect(due.grantOutcomes.g).toEqual({ kind: 'spent', atMs: NOW + 55 * 60_000, amount: 100 });
+    // A limit grant on the already-dry account resumes when it becomes usable.
+    const limit = run([
+      grant({ policy: 'limit', expiresAtMs: NOW + DAY, startsAtMs: NOW + 55 * 60_000 }),
+    ]);
+    expect(limit.grantOutcomes.g).toEqual({
+      kind: 'spent',
+      atMs: NOW + 55 * 60_000,
+      amount: 100,
+    });
+  });
+
   test('a limit grant on an account that is already dry is spent at once', () => {
     const result = run([grant({ policy: 'limit' })]);
     expect(result.grantOutcomes.g).toEqual({ kind: 'spent', atMs: NOW, amount: 100 });
