@@ -7,17 +7,27 @@ quota-resets.service). Every upstream call goes through the hub's
 
 - Scheduler (~30 s tick): reads each account's grants/credits about hourly
   (staggered), again ~20 min before a planned action, and as a preflight
-  right before every spend. Per-grant policy: `expiry` (spend LEAD seconds
-  before it expires), `limit` (spend once the account is limited), `off`.
+  right before every spend. Per-grant policy: `expiry` (start spending LEAD
+  seconds before it expires and keep trying until it does), `limit` (spend
+  once the account is limited), `off`.
+- A spend never depends on that preflight alone: when the read fails (the
+  usage endpoint rate limits), the last reading stands in, because upstream
+  itself refuses a reset that is gone or not allowed.
 - Every spend is journalled to the private state file before it is sent, so a
   restart retries an unknown outcome with the same request id (idempotent
   upstream within 10 minutes) instead of minting a second spend.
+- Every answer is recorded with its HTTP status and upstream code. Only a lost
+  or server-side-failed request counts as unknown; a refusal is a refusal.
 - Public view: ~/quota-history/public/resets.json (no org ids, request ids,
   tokens or emails). Private state: ~/quota-history/resets-state.json (0600).
 - HTTP API on 127.0.0.1:8319 (management key required): GET /state,
   POST /policy, POST /spend, POST /refresh; optional /quota-resets prefix.
 
 `resets.py --plan` prints the planned actions without spending anything.
+`resets.py --check` rehearses every pending reset through the whole spend path
+on the real accounts and stops before the request is sent.
+QUOTA_RESETS_LEAD (seconds) overrides the lead; QUOTA_RESETS_DRY_RUN=1 makes
+the service go through the motions without ever sending a spend.
 Standard library only.
 """
 import argparse
@@ -45,7 +55,18 @@ LOG_FILE = os.path.join(DATA_DIR, "resets.log")
 PUBLIC_FILE = os.path.join(DATA_DIR, "public", "resets.json")
 LISTEN_HOST, LISTEN_PORT = "127.0.0.1", 8319
 
-LEAD_SECONDS = 600            # expiry policy spends at expires - LEAD
+
+def _env_seconds(name, default, low, high):
+    try:
+        return min(high, max(low, int(os.environ[name])))
+    except (KeyError, ValueError):
+        return default
+
+
+# An hour gives a failed spend room to be retried; what the account uses in
+# that hour is all an earlier spend gives up.
+LEAD_SECONDS = _env_seconds("QUOTA_RESETS_LEAD", 3600, 60, 86400)
+ARMED = os.environ.get("QUOTA_RESETS_DRY_RUN", "").strip().lower() not in ("1", "true", "yes")
 TICK_SECONDS = 30
 READ_INTERVAL = 3600          # routine read per account
 READ_STAGGER = 300            # spread of routine reads across accounts
@@ -55,8 +76,12 @@ BACKOFF_SECONDS = 7200        # after an upstream 429
 BACKOFF_PREFLIGHT_GAP = 300   # preflight reads during a backoff, at most this often
 RETRY_WINDOW = 600            # same request id is idempotent upstream for this long
 RETRY_GAP = 60                # retry spacing for an unknown outcome
-EXPIRY_ATTEMPT_GAP = 60       # attempt spacing inside the expiry window
+EXPIRY_ATTEMPT_GAP = 600      # attempt spacing inside the expiry window...
+FINAL_SECONDS = 600           # ...until this close to the expiry,
+FINAL_ATTEMPT_GAP = 60        # and after an attempt that sent nothing upstream
 LIMIT_ATTEMPT_GAP = 600       # at most one limit-triggered attempt per grant per 10 min
+STATUS_MAX_AGE = 24 * 3600    # a failed preflight falls back to a reading this fresh
+ORG_RETRY = 900               # next organization lookup after a failed one
 REFRESH_GAP = 120
 KEEP_DONE = 7 * 86400         # spent/expired grants stay visible this long
 PUBLIC_LOG = 50
@@ -97,7 +122,14 @@ CODEX_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,80}")
 RESET_WINDOWS = ("five_hour", "seven_day", "seven_day_overage_included")
 CLAUDE_RESULTS = ("reset", "already_used", "not_limited", "cooldown", "ineligible", "unavailable")
 CODEX_SUCCESS = ("reset", "already_redeemed")
+# Answers that spend nothing: usage is too low for a reset to do anything (the
+# credit is kept), or the credit is no longer there.
+CODEX_REFUSALS = ("nothing_to_reset", "no_credit")
 SPENT_CODES = ("reset", "already_used", "already_redeemed")
+# HTTP statuses that leave the outcome open, next to every 5xx.
+AMBIGUOUS_HTTP = (408, 409, 425)
+# Attempts that never reached upstream: retried soon rather than at the window's pace.
+NOTHING_SENT = ("hub_unavailable", "preflight_failed")
 KNOWN_INELIGIBLE = {"config_off", "tier", "seat", "mobile", "surface", "cli_version", "no_grant",
                     "tenure", "other_experiment", "unavailable", "unknown"}
 
@@ -113,6 +145,9 @@ DETAILS = {
     "rate_limited": "upstream rate limited",
     "auth_error": "upstream rejected credentials",
     "unknown": "no definite answer; retrying with the same request id",
+    "refused": "upstream refused the request; nothing spent",
+    "nothing_to_reset": "nothing to reset at this usage; credit kept",
+    "dry_run": "dry run; nothing sent",
     "hub_unavailable": "hub unavailable; nothing sent",
     "preflight_failed": "preflight read failed; nothing sent",
     "paused": "grant paused",
@@ -315,13 +350,16 @@ def parse_codex_credits(payload):
             continue
         granted_raw = _str(item.get("granted_at", item.get("grantedAt"))) or ""
         cid = _str(item.get("id")) or ""
+        # Only upstream's own id can be named in a consume; a stand-in cannot.
+        pin = bool(CODEX_ID_RE.fullmatch(cid)) and cid not in ids
         if not CODEX_ID_RE.fullmatch(cid):
             cid = "codex-" + hashlib.sha256(f"{granted_raw}|{expires_raw}".encode()).hexdigest()[:16]
         base, n = cid, 2
         while cid in ids:
             cid, n = f"{base}-{n}", n + 1
         ids.add(cid)
-        credits.append({"id": cid, "granted": epoch(granted_raw), "expires": epoch(expires_raw)})
+        credits.append({"id": cid, "granted": epoch(granted_raw), "expires": epoch(expires_raw),
+                        "pin": pin})
     count = num(payload.get("available_count", payload.get("availableCount")))
     return {"available_count": int(count) if count is not None else None, "credits": credits}
 
@@ -409,6 +447,59 @@ def codex_limited(signals, now):
                            epoch(signals.get(f"X-Codex-{win}-Reset-At")), now, 100):
             limited = True
     return limited
+
+
+def _token(value):
+    """A short machine code from upstream, or None. Free text is never kept."""
+    return value if isinstance(value, str) and re.fullmatch(r"[a-z0-9_]{1,40}", value) else None
+
+
+def _open_outcome(status):
+    """True when an HTTP status says nothing about whether the request took effect."""
+    return status >= 500 or status < 200 or status in AMBIGUOUS_HTTP or 300 <= status < 400
+
+
+def classify_claim(status, body):
+    """(result, upstream code) for a Claude reset_rate_limits reply.
+
+    Only a reply that leaves the outcome open is `unknown`. A 4xx is a refusal:
+    nothing was spent and repeating the same request would not help.
+    """
+    body = body if isinstance(body, dict) else {}
+    result, reason = body.get("result"), _token(body.get("reason"))
+    if status == 429:
+        return "rate_limited", reason
+    if status in (401, 403):
+        return "auth_error", reason
+    if 200 <= status < 300:
+        return (result, reason) if result in CLAUDE_RESULTS else ("unknown", _token(result))
+    return ("unknown" if _open_outcome(status) else "refused"), reason
+
+
+def classify_consume(status, body):
+    """(result, upstream code) for a Codex consume reply."""
+    body = body if isinstance(body, dict) else {}
+    code = body.get("code")
+    if status == 429:
+        return "rate_limited", None
+    if status in (401, 403):
+        return "auth_error", None
+    if code in CODEX_REFUSALS and not _open_outcome(status):
+        return code, None
+    if 200 <= status < 300:
+        return (code, None) if code in CODEX_SUCCESS else ("unknown", _token(code))
+    return ("unknown" if _open_outcome(status) else "refused"), _token(code)
+
+
+def describe(result, http=None, upstream=None):
+    """The fixed public text for a result, with the status and code that explain it."""
+    text = DETAILS.get(result, result)
+    tags = []
+    if http is not None and result in ("unknown", "refused", "rate_limited", "auth_error"):
+        tags.append(f"HTTP {http}")
+    if upstream and upstream != result:
+        tags.append(upstream)
+    return f"{text} ({', '.join(tags)})" if tags else text
 
 
 # ---------------------------------------------------------------------------
@@ -548,10 +639,16 @@ def _empty_state():
 
 class Service:
     def __init__(self, hub, clock=time.time, state_file=STATE_FILE, public_file=PUBLIC_FILE,
-                 log_file=LOG_FILE, new_id=lambda: str(uuid.uuid4()), persist=True, echo=True):
+                 log_file=LOG_FILE, new_id=lambda: str(uuid.uuid4()), persist=True, echo=True,
+                 lead=None, armed=None):
         self.hub, self.clock, self.new_id = hub, clock, new_id
         self.state_file, self.public_file, self.log_file = state_file, public_file, log_file
         self.persist, self.echo = persist, echo
+        self.lead = LEAD_SECONDS if lead is None else lead
+        # Not armed: every step runs except the request that spends. See _claim and _consume.
+        self.armed = ARMED if armed is None else armed
+        self.would_send = None            # the last spend request a disarmed service held back
+        self._org_retry = {}
         self.lock = threading.RLock()     # state mutations
         self.work = threading.Lock()      # upstream work (ticks, spends, refreshes)
         self.started = self.now()
@@ -703,7 +800,8 @@ class Service:
                 self._merge(idx, "codex", [
                     {"id": c["id"], "label": "Codex rate-limit reset credit", "total": 1,
                      "left": 1, "starts": c["granted"], "expires": c["expires"], "clears": [],
-                     "paused": False, "usable": True, "requires_limit": False}
+                     "paused": False, "usable": True, "requires_limit": False,
+                     "pin": c["pin"]}
                     for c in parsed["credits"]], now)
         return parsed
 
@@ -720,6 +818,8 @@ class Service:
                       "usable", "requires_limit")
             # A settled grant never reopens: a lagging read must not invite a second spend.
             g.update({k: item[k] for k in fields if not (g["final"] and k == "left")})
+            if "pin" in item:
+                g["pin"] = item["pin"]
             g["seen"] = now
             if g["final"] is None and item["left"] <= 0:
                 g["final"], g["final_at"] = "spent", now
@@ -776,9 +876,42 @@ class Service:
         if pol == "expiry" and g.get("expires"):
             if now >= g["expires"]:
                 return None
-            return max(g["expires"] - LEAD_SECONDS, g["last_attempt"] + EXPIRY_ATTEMPT_GAP)
+            return max(g["expires"] - self.lead, g["last_attempt"] + self._expiry_gap(g, now))
         if pol == "limit" and self._limit_signal(g["account"]):
             return max(now, g["last_attempt"] + LIMIT_ATTEMPT_GAP)
+        return None
+
+    def _expiry_gap(self, g, now):
+        """Spacing of attempts inside the expiry window.
+
+        A refusal is retried at a measured pace, since the account may change
+        (usage rises, a cooldown ends). The last stretch before the expiry, and
+        an attempt that never reached upstream, are retried every minute.
+        """
+        last = (g.get("last") or {}).get("result")
+        if last in NOTHING_SENT or g["expires"] - now <= FINAL_SECONDS:
+            return FINAL_ATTEMPT_GAP
+        return EXPIRY_ATTEMPT_GAP
+
+    def blocker(self, key, now):
+        """Why an automatic spend could not go out right now, judged from the last
+        reading; None when nothing stands in its way. Being short of a required
+        limit is not a blocker: that is what the window waits for."""
+        g = self.state["grants"][key]
+        if g["final"] or self.policy(key) == "off":
+            return None
+        acct = self.state["accounts"].get(g["account"]) or {}
+        if (acct.get("ok_at") or 0) < now - STATUS_MAX_AGE:
+            return "stale"
+        if g["p"] == "claude":
+            if acct.get("eligible") is False:
+                return "ineligible"
+            if g.get("paused"):
+                return "paused"
+            if not g.get("usable"):
+                return "not_usable"
+            if not self.state["orgs"].get(g["account"]):
+                return "no_org"
         return None
 
     def grant_state(self, key, now):
@@ -819,6 +952,7 @@ class Service:
                         self.read_account(idx, now)
                     except ReadError:
                         pass
+            self._warm_org(now)
             for key in sorted(self.state["grants"]):
                 g = self.state["grants"].get(key)
                 if g and not g["final"] and g["account"] in (self.live or {}):
@@ -826,6 +960,20 @@ class Service:
             self._sweep(self.now())
             self.save()
             self.publish()
+
+    def _warm_org(self, now):
+        """Learn one Claude account's organization per tick, long before a claim
+        needs it: a claim must not hinge on a profile read made at the last minute."""
+        for idx in sorted(self.live or {}):
+            if self.live[idx]["p"] != "claude" or self.state["orgs"].get(idx):
+                continue
+            if self._org_retry.get(idx, 0) > now:
+                continue
+            if any(g["account"] == idx and not g["final"]
+                   for g in self.state["grants"].values()):
+                if not self._org(idx):
+                    self._org_retry[idx] = now + ORG_RETRY
+                return
 
     def _limit_signal(self, idx):
         """Hub says limited, from an observation newer than our last spend there."""
@@ -839,9 +987,9 @@ class Service:
             if pol != "off" and now - g["last_attempt"] >= RETRY_GAP:
                 self.attempt(key, self.state["journal"][key]["trigger"])
             return
-        if pol == "expiry" and g.get("expires") and g["expires"] - LEAD_SECONDS <= now < g[
+        if pol == "expiry" and g.get("expires") and g["expires"] - self.lead <= now < g[
                 "expires"]:
-            if now - g["last_attempt"] >= EXPIRY_ATTEMPT_GAP:
+            if now - g["last_attempt"] >= self._expiry_gap(g, now):
                 self.attempt(key, "expiry")
         elif pol == "limit" and self._limit_signal(g["account"]):
             if now - g["last_attempt"] >= LIMIT_ATTEMPT_GAP:
@@ -863,15 +1011,21 @@ class Service:
 
     # -- spending ----------------------------------------------------------------
 
-    def _record(self, key, trigger, result, detail=None):
+    def _record(self, key, trigger, result, detail=None, http=None, upstream=None):
         now = self.now()
+        extra = {}
+        if http is not None:
+            extra["http"] = http
+        if upstream:
+            extra["upstream"] = upstream
         with self.lock:
             g = self.state["grants"][key]
-            detail = detail or DETAILS.get(result, result)
-            g["last"] = {"t": now, "trigger": trigger, "result": result, "detail": detail}
+            detail = detail or describe(result, http, upstream)
+            g["last"] = {"t": now, "trigger": trigger, "result": result, "detail": detail,
+                         **extra}
             g["last_attempt"] = now
         self.log({"t": now, "grant": g["id"], "account": g["account"], "p": g["p"],
-                  "trigger": trigger, "result": result, "detail": detail})
+                  "trigger": trigger, "result": result, "detail": detail, **extra})
         self.save()
         self.publish()
         return result
@@ -881,6 +1035,15 @@ class Service:
         if acct.get("backoff_until", 0) > now:
             return now - (acct.get("checked") or 0) >= BACKOFF_PREFLIGHT_GAP
         return True
+
+    def _preflight(self, idx, now):
+        """Read the account right before a spend. During a rate-limit backoff the
+        read is repeated only every BACKOFF_PREFLIGHT_GAP; in between it counts as
+        failed without touching upstream, so the backoff is not prolonged."""
+        if not self._preflight_allowed(idx, now):
+            acct = self.state["accounts"].get(idx) or {}
+            raise ReadError(acct.get("error") or "rate_limited")
+        return self.read_account(idx, now)
 
     def attempt(self, key, trigger):
         """One spend attempt with preflight and journal. Returns the result code."""
@@ -893,17 +1056,20 @@ class Service:
         idx = g["account"]
         if not self._unresolved(key, now) and self._account_settling(idx, key, now):
             return "account_busy"      # skipped silently; the tick retries later
-        if not self._preflight_allowed(idx, now) and not self._unresolved(key, now):
-            return "rate_limited"      # skipped silently; the tick retries later
         if g["p"] == "claude":
             return self._attempt_claude(key, g, idx, trigger, now)
         return self._attempt_codex(key, g, idx, trigger, now)
 
-    def _journal(self, key, g, trigger, now, org=None):
+    def _journal(self, key, g, trigger, now, org=None, credit=None):
         entry = {"rid": self.new_id(), "created": now, "account": g["account"], "p": g["p"],
                  "trigger": trigger, "outcome": None, "left_before": g.get("left")}
         if org:
             entry["org"] = org
+        if credit:
+            entry["credit"] = credit      # a retry must repeat the same request
+        # One reset left on a named grant or credit: a later request under a new
+        # id can only be told it is gone, never spend a second one.
+        entry["single"] = g.get("left") == 1 and (g["p"] == "claude" or bool(credit))
         if not REQUEST_ID_RE.fullmatch(entry["rid"]):
             raise ValueError("bad request id")
         with self.lock:
@@ -912,16 +1078,32 @@ class Service:
         return entry
 
     def _close_stale(self, key, now):
-        """A stale ambiguous attempt is closed only by a read taken after it."""
+        """A stale ambiguous attempt is closed by a read taken after it, or without
+        one when a new request id could not spend a second reset (see _journal)."""
         j = self.state["journal"].get(key)
         if j and j.get("outcome") is None and now - j["created"] >= RETRY_WINDOW:
             acct = self.state["accounts"].get(j["account"]) or {}
-            if (acct.get("ok_at") or 0) > j["created"]:
+            if (acct.get("ok_at") or 0) > j["created"] or j.get("single"):
                 with self.lock:
                     j["outcome"] = "unknown_settled"
                 return True
             return False
         return True
+
+    def _last_reading(self, idx, now):
+        """The Claude account as last read, in parse_claude_status form, when that
+        reading is fresh enough to act on; None otherwise."""
+        acct = self.state["accounts"].get(idx) or {}
+        if (acct.get("ok_at") or 0) < now - STATUS_MAX_AGE or acct.get("eligible") is None:
+            return None
+        fields = ("id", "paused", "usable", "left", "requires_limit", "starts", "expires")
+        return {"eligible": acct["eligible"],
+                # Traffic through the hub may have hit the limit since that reading.
+                "at_limit": bool(acct.get("at_limit")) or bool(self.limited.get(idx)),
+                "cooldown_until": acct.get("cooldown_until"),
+                "grants": [{k: g.get(k) for k in fields}
+                           for g in self.state["grants"].values()
+                           if g["account"] == idx and not g["final"]]}
 
     def _org(self, idx):
         org = self.state["orgs"].get(idx)
@@ -954,12 +1136,18 @@ class Service:
     def _attempt_claude(self, key, g, idx, trigger, now):
         j = self._unresolved(key, now)
         retry = j is not None
+        note = ""
         if not retry:
             try:
-                status = self.read_account(idx, now)        # preflight; also closes stale ones
+                status = self._preflight(idx, now)          # also closes stale attempts
             except ReadError as err:
-                return self._record(key, trigger, "preflight_failed",
-                                    f"status read failed ({err.code}); nothing sent")
+                # The claim names its grant and upstream refuses one that is gone or
+                # not allowed, so a recent reading is enough to go on.
+                status = self._last_reading(idx, now)
+                if status is None:
+                    return self._record(key, trigger, "preflight_failed",
+                                        f"status read failed ({err.code}); nothing sent")
+                note = f"; status read failed ({err.code}), last reading used"
             if not self._close_stale(key, now):
                 return self._record(key, trigger, "unknown")
             g = self.state["grants"][key]
@@ -969,7 +1157,7 @@ class Service:
                                     else "grant_expired")
             blocker = claude_blocker(status, g["id"], now)
             if blocker:
-                return self._record(key, trigger, blocker)
+                return self._record(key, trigger, blocker, DETAILS.get(blocker, blocker) + note)
             org = self._org(idx)
             if not org:
                 return self._record(key, trigger, "preflight_failed",
@@ -979,7 +1167,7 @@ class Service:
             j = self._journal(key, g, trigger, now, org=org)
         if self.now() - j["created"] >= RETRY_WINDOW:
             return self._record(key, trigger, "unknown")
-        code = self._claim(idx, j["org"], g["id"], j["rid"])
+        code, http, upstream = self._claim(idx, j["org"], g["id"], j["rid"])
         with self.lock:
             if code != "unknown" and (not retry or code in SPENT_CODES):
                 j["outcome"] = code
@@ -993,45 +1181,74 @@ class Service:
             if code in SPENT_CODES or code == "unknown":
                 self._note_spend(idx)
         self.save()
-        detail = None
+        detail = describe(code, http, upstream) + note
         if code in SPENT_CODES:
             cleared = self._clear_cooldown(idx)
-            detail = DETAILS[code] + ("; hub cooldown cleared" if cleared
-                                      else "; hub cooldown clear failed")
-        return self._record(key, trigger, code, detail)
+            detail += "; hub cooldown cleared" if cleared else "; hub cooldown clear failed"
+        return self._record(key, trigger, code, detail, http, upstream)
 
     def _claim(self, idx, org, grant_id, request_id):
+        """Send one claim. Returns (result, HTTP status or None, upstream code or None)."""
         if not (ORG_RE.fullmatch(org) and GRANT_ID_RE.fullmatch(grant_id)
                 and REQUEST_ID_RE.fullmatch(request_id)):
-            return "hub_unavailable"
-        body = json.dumps({"program": CLAUDE_PROGRAM, "grant_id": grant_id,
-                           "request_id": request_id})
+            return "hub_unavailable", None, None
+        url = f"{ANTHROPIC}/api/organizations/{org}/reset_rate_limits"
+        body = {"program": CLAUDE_PROGRAM, "grant_id": grant_id, "request_id": request_id}
+        if not self.armed:
+            self.would_send = {"method": "POST", "url": url.replace(org, "<organization>"),
+                               "fields": sorted(body)}
+            return "dry_run", None, None
         try:
-            status, resp = self.hub.api_call(
-                idx, "POST", f"{ANTHROPIC}/api/organizations/{org}/reset_rate_limits",
-                dict(CLAUDE_HEADERS), body, timeout=CLAUDE_CLAIM_TIMEOUT)
+            status, resp = self.hub.api_call(idx, "POST", url, dict(CLAUDE_HEADERS),
+                                             json.dumps(body), timeout=CLAUDE_CLAIM_TIMEOUT)
         except HubError as err:
-            return "unknown" if err.sent else "hub_unavailable"
-        if status == 429:
-            return "rate_limited"
-        if status in (401, 403):
-            return "auth_error"
-        result = resp.get("result") if isinstance(resp, dict) else None
-        if 200 <= status < 300 and result in CLAUDE_RESULTS:
-            return result
-        return "unknown"
+            return ("unknown" if err.sent else "hub_unavailable"), None, None
+        result, upstream = classify_claim(status, resp)
+        return result, status, upstream
+
+    @staticmethod
+    def _pinned(g):
+        """The consume can name this credit: it carries upstream's own id, and
+        upstream has not turned the named form down."""
+        return bool(g.get("pin")) and not g.get("unpin")
+
+    def _consume(self, idx, request_id, credit):
+        """Send one consume. Returns (result, HTTP status or None, upstream code or None)."""
+        header = {**CODEX_HEADERS}
+        account_id = ((self.live or {}).get(idx) or {}).get("account_id")
+        if account_id:
+            header["Chatgpt-Account-Id"] = account_id
+        body = {"redeem_request_id": request_id}
+        if credit:
+            body["credit_id"] = credit
+        if not self.armed:
+            self.would_send = {"method": "POST", "url": CODEX_CONSUME_URL, "fields": sorted(body)}
+            return "dry_run", None, None
+        try:
+            status, resp = self.hub.api_call(idx, "POST", CODEX_CONSUME_URL, header,
+                                             json.dumps(body), timeout=CODEX_TIMEOUT)
+        except HubError as err:
+            return ("unknown" if err.sent else "hub_unavailable"), None, None
+        result, upstream = classify_consume(status, resp)
+        return result, status, upstream
 
     def _attempt_codex(self, key, g, idx, trigger, now):
         j = self._unresolved(key, now)
         retry = j is not None
+        note = ""
         before = {k for k, x in self.state["grants"].items()
                   if x["account"] == idx and not x["final"]}
         if not retry:
             try:
-                self.read_account(idx, now)
+                self._preflight(idx, now)
             except ReadError as err:
-                return self._record(key, trigger, "preflight_failed",
-                                    f"credit read failed ({err.code}); nothing sent")
+                # A named credit can go out on a recent reading: upstream answers
+                # no_credit when it is gone. Unnamed, upstream would pick one itself.
+                acct = self.state["accounts"].get(idx) or {}
+                if not self._pinned(g) or (acct.get("ok_at") or 0) < now - STATUS_MAX_AGE:
+                    return self._record(key, trigger, "preflight_failed",
+                                        f"credit read failed ({err.code}); nothing sent")
+                note = f"; credit read failed ({err.code}), last reading used"
             if not self._close_stale(key, now):
                 return self._record(key, trigger, "unknown")
             g = self.state["grants"][key]
@@ -1040,48 +1257,39 @@ class Service:
                                     else "grant_expired")
             before = {k for k, x in self.state["grants"].items()
                       if x["account"] == idx and not x["final"]}
-            # Consume cannot name a credit, so upstream may use any listed one.
+            # Unnamed, a consume may use any listed credit; and a named one is not
+            # relied on to protect a credit the user switched off.
             if any(self.policy(k) == "off" for k in before if k != key):
                 return self._record(key, trigger, "off_credit")
-            j = self._journal(key, g, trigger, now)
+            j = self._journal(key, g, trigger, now,
+                              credit=g["id"] if self._pinned(g) else None)
         if self.now() - j["created"] >= RETRY_WINDOW:
             return self._record(key, trigger, "unknown")
-        header = {**CODEX_HEADERS}
-        account_id = ((self.live or {}).get(idx) or {}).get("account_id")
-        if account_id:
-            header["Chatgpt-Account-Id"] = account_id
-        try:
-            status, resp = self.hub.api_call(idx, "POST", CODEX_CONSUME_URL, header,
-                                             json.dumps({"redeem_request_id": j["rid"]}),
-                                             timeout=CODEX_TIMEOUT)
-            code = resp.get("code") if isinstance(resp, dict) else None
-            if 200 <= status < 300 and code in CODEX_SUCCESS:
-                pass
-            elif status == 429:
-                code = "rate_limited"
-            elif status in (401, 403):
-                code = "auth_error"
-            else:
-                code = "unknown"
-        except HubError as err:
-            code = "unknown" if err.sent else "hub_unavailable"
+        code, http, upstream = self._consume(idx, j["rid"], j.get("credit"))
         with self.lock:
             if code != "unknown" and (not retry or code in SPENT_CODES):
                 j["outcome"] = code
+            if code == "refused" and j.get("credit"):
+                # Upstream turned the request down as sent. The form without a credit
+                # id is the long-standing one, so the next attempt goes back to it.
+                g["unpin"] = True
+                note += "; next attempt lets Codex pick the credit"
             if code in SPENT_CODES or code == "unknown":
                 self._note_spend(idx)
         self.save()
         if code not in SPENT_CODES:
-            return self._record(key, trigger, code)
+            return self._record(key, trigger, code, describe(code, http, upstream) + note,
+                                http, upstream)
         cleared = self._clear_cooldown(idx)
-        suffix = "; hub cooldown cleared" if cleared else "; hub cooldown clear failed"
+        suffix = note + ("; hub cooldown cleared" if cleared else "; hub cooldown clear failed")
+        detail = describe(code, http, upstream) + suffix
         try:
             self.read_account(idx, self.now())               # verify one credit disappeared
         except ReadError:
             with self.lock:
                 if not g["final"]:
                     g["final"], g["final_at"], g["left"] = "spent", self.now(), 0
-            return self._record(key, trigger, code, DETAILS[code] + suffix + "; verify failed")
+            return self._record(key, trigger, code, detail + "; verify failed", http, upstream)
         now2 = self.now()
         gone = sorted(k for k in before if self.state["grants"][k]["final"])
         with self.lock:
@@ -1092,12 +1300,13 @@ class Service:
                         "t": now2, "trigger": trigger, "result": code,
                         "detail": "used by a consume for another credit"}
         if key in gone:
-            return self._record(key, trigger, code, DETAILS[code] + suffix + "; verified")
+            return self._record(key, trigger, code, detail + "; verified", http, upstream)
         with self.lock:
             g["final"], g["final_at"] = ("failed" if gone else "spent"), now2
         if gone:
-            return self._record(key, trigger, "wrong_credit", DETAILS["wrong_credit"] + suffix)
-        return self._record(key, trigger, code, DETAILS[code] + suffix + "; credit still listed")
+            return self._record(key, trigger, "wrong_credit", DETAILS["wrong_credit"] + suffix,
+                                http, upstream)
+        return self._record(key, trigger, code, detail + "; credit still listed", http, upstream)
 
     # -- API operations ------------------------------------------------------------
 
@@ -1195,12 +1404,14 @@ class Service:
                     "usable": g.get("usable"), "requires_limit": bool(g.get("requires_limit")),
                     "policy": self.policy(key), "policy_set": key in self.state["policies"],
                     "next_action": self.next_action(key, now),
-                    "state": self.grant_state(key, now), "last": g.get("last")})
+                    "state": self.grant_state(key, now), "blocker": self.blocker(key, now),
+                    "last": g.get("last")})
             grants.sort(key=lambda x: (x["expires"] is None, x["expires"] or 0, x["account"],
                                        x["id"]))
             return {"version": 1, "updated": now,
-                    "service": {"started": self.started, "lead_seconds": LEAD_SECONDS,
-                                "default_policy": self.state["default_policy"]},
+                    "service": {"started": self.started, "lead_seconds": self.lead,
+                                "default_policy": self.state["default_policy"],
+                                "armed": self.armed},
                     "accounts": accounts, "grants": grants,
                     "log": [dict(e) for e in self.state["log"][:PUBLIC_LOG]]}
 
@@ -1329,7 +1540,8 @@ def _fmt(t, now):
 def print_plan(view, out=sys.stdout):
     now = int(time.time())
     svc = view["service"]
-    print(f"default policy: {svc['default_policy']}, lead {svc['lead_seconds']} s", file=out)
+    print(f"default policy: {svc['default_policy']}, lead {svc['lead_seconds']} s"
+          + ("" if svc.get("armed", True) else ", DRY RUN (nothing is spent)"), file=out)
     for a in view["accounts"]:
         print(f"\n{a['p']} {a['id']}: checked {_fmt(a['checked'], now)}, error {a['error']}, "
               f"eligible {a['eligible']}, at_limit {a['at_limit']}, limited {a['limited']}, "
@@ -1344,6 +1556,7 @@ def print_plan(view, out=sys.stdout):
                   file=out)
             print(f"    policy {pol}, state {g['state']}, next action "
                   f"{_fmt(g['next_action'], now)}"
+                  + (f", blocked now: {g['blocker']}" if g.get("blocker") else "")
                   + (f", last {g['last']['result']}" if g["last"] else ""), file=out)
 
 
@@ -1373,11 +1586,96 @@ def plan(args):
     print_plan(view)
 
 
+# --check reuses the running service's hourly reading rather than reading again:
+# the status endpoint rate limits, and the check must not eat into that budget.
+CHECK_REUSE = 2 * 3600
+
+
+def rehearse(service, out=sys.stdout):
+    """Run every pending reset through the spend path as if it were due now.
+
+    `service` must be disarmed: each attempt then does everything a real one does
+    (preflight, checks, organization, journal, request) except send the spend.
+    Reads each account at most once. Returns the number of resets that would not
+    have reached the request.
+    """
+    if service.armed:
+        raise ValueError("refusing to rehearse with an armed service")
+    now = service.now()
+    service.refresh_hub_view(now)
+    if service.live is None:
+        print("hub not reachable; nothing checked", file=out)
+        return 1
+    pending = sorted((k for k, g in service.state["grants"].items()
+                      if not g["final"] and g["account"] in service.live),
+                     key=lambda k: (service.state["grants"][k].get("expires") or 0, k))
+    readings = {}
+    for idx in sorted({service.state["grants"][k]["account"] for k in pending}):
+        acct = service.state["accounts"].get(idx) or {}
+        if acct.get("backoff_until", 0) > now:
+            readings[idx] = ReadError(acct.get("error") or "rate_limited")   # leave it alone
+        elif (acct.get("ok_at") or 0) > now - CHECK_REUSE:
+            readings[idx] = None                                           # recent enough
+        else:
+            try:
+                readings[idx] = service.read_account(idx, now)
+            except ReadError as err:
+                readings[idx] = err
+    read_live = service.read_account
+
+    def replay(idx, at):
+        reading = readings.get(idx)
+        if isinstance(reading, ReadError):
+            raise ReadError(reading.code)
+        if reading is not None:
+            return reading
+        if service.live[idx]["p"] == "claude":
+            return service._last_reading(idx, at) or read_live(idx, at)
+        return None
+
+    service.read_account = replay
+    failed = 0
+    print(f"lead {service.lead} s; each reset is run as if it were due now, "
+          "and stops before the spend is sent", file=out)
+    for key in pending:
+        g = service.state["grants"][key]
+        policy = service.policy(key)
+        head = (f"{g['p']} {g['account']} {g['id']} [{g.get('label') or '-'}] "
+                f"expires {_fmt(g.get('expires'), now)}, policy {policy}")
+        if policy != "expiry" or not g.get("expires"):
+            print(f"{head}\n    not rehearsed: no automatic spend before expiry", file=out)
+            continue
+        service.would_send = None
+        result = service.attempt(key, "expiry")
+        detail = (g.get("last") or {}).get("detail") or result
+        if result == "dry_run" and service.would_send:
+            sent = service.would_send
+            reading = readings.get(g["account"])
+            via = (f"last reading (read failed: {reading.code})"
+                   if isinstance(reading, ReadError) else "current reading")
+            print(f"{head}\n    READY from {_fmt(g['expires'] - service.lead, now)}: {via}; "
+                  f"would send {sent['method']} {sent['url']} with {', '.join(sent['fields'])}",
+                  file=out)
+        else:
+            failed += 1
+            print(f"{head}\n    NOT READY: {result}: {detail}", file=out)
+    print(f"{len(pending) - failed if pending else 0} of {len(pending)} pending resets reach "
+          "the spend request; nothing was sent", file=out)
+    return failed
+
+
+def check(args):
+    # Never persists and can never send: a disarmed service on a copy of the state.
+    service = Service(Hub(), persist=False, echo=False, armed=False)
+    sys.exit(1 if rehearse(service) else 0)
+
+
 def serve(args):
     service = Service(Hub())
     server = make_server(service)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    print(json.dumps({"t": service.now(), "result": "started",
+    print(json.dumps({"t": service.now(), "result": "started", "lead": service.lead,
+                      "armed": service.armed,
                       "listen": f"{LISTEN_HOST}:{LISTEN_PORT}"}), flush=True)
     while True:
         try:
@@ -1391,8 +1689,10 @@ def serve(args):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--plan", action="store_true", help="print planned actions (dry run)")
+    parser.add_argument("--check", action="store_true",
+                        help="rehearse every pending reset up to the spend request; sends none")
     args = parser.parse_args(argv)
-    (plan if args.plan else serve)(args)
+    (check if args.check else plan if args.plan else serve)(args)
 
 
 if __name__ == "__main__":
