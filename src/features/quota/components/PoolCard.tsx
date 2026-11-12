@@ -2,6 +2,11 @@
  * One provider's pooled quota: hero remaining, the projection stats (plus the
  * reset grants waiting on this pool), the chart, and the accounts under it.
  *
+ * A provider with a model-scoped weekly limit (Claude's Fable limit) gets a
+ * scope switch in the header once an account reports it. Each segment shows
+ * what that scope has left, so the other limit stays in view; choosing one
+ * re-measures the whole card against it.
+ *
  * Layout only; numbers come from buildPoolView (pool/poolView.ts).
  */
 
@@ -10,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import type { ResolvedTheme } from '@/types';
 import { grantKey, type QuotaResetsState } from '@/services/api/quotaResets';
 import { getAuthFileIcon, getTypeLabel } from '@/features/authFiles/constants';
-import { accountShortLabel, type PoolAccount } from '../pool/accounts';
+import { accountShortLabel, hasScopeData, poolRemaining, type PoolAccount } from '../pool/accounts';
 import {
   durationParts,
   formatInstant,
@@ -21,7 +26,7 @@ import {
 import type { BurnWindowHours, FutureUsageMode, TimeRange } from '../pool/poolModel';
 import { buildPoolView, niceCeiling } from '../pool/poolView';
 import { DEFAULT_HISTORY_INTERVAL_MS } from '../pool/history';
-import type { PoolProvider, QuotaHistory } from '../pool/types';
+import { poolScopesFor, type PoolProvider, type PoolScope, type QuotaHistory } from '../pool/types';
 import type { PoolMetric } from '../uiState';
 import { PoolAccountRows } from './PoolAccountRows';
 import { PoolChart } from './PoolChart';
@@ -46,6 +51,10 @@ export interface PoolCardProps {
   metric: PoolMetric;
   burnWindow: BurnWindowHours;
   futureUsage: FutureUsageMode;
+  /** Preferred limit to pool; falls back to `all` when this pool cannot show it. */
+  scope?: PoolScope;
+  /** Enables the scope switch (shown once an account reports a scoped limit). */
+  onScopeChange?: (scope: PoolScope) => void;
   showAccounts: boolean;
   showEmails: boolean;
   resolvedTheme: ResolvedTheme;
@@ -63,6 +72,7 @@ export function PoolCard(props: PoolCardProps) {
     metric,
     burnWindow,
     futureUsage,
+    onScopeChange,
     showAccounts,
     showEmails,
     resolvedTheme,
@@ -75,6 +85,18 @@ export function PoolCard(props: PoolCardProps) {
   const iconSrc = getAuthFileIcon(provider, resolvedTheme);
   const color = POOL_COLORS[provider];
 
+  // Scopes this pool can show right now: one needs at least one reporting account.
+  const scopes = useMemo(
+    () =>
+      poolScopesFor(provider).filter((value) => value === 'all' || hasScopeData(accounts, value)),
+    [provider, accounts]
+  );
+  const scope: PoolScope = props.scope && scopes.includes(props.scope) ? props.scope : 'all';
+  const scoped = scope !== 'all';
+  const scopeName = (value: PoolScope) => t(`quota_management.pool_scope_${value}`);
+  // "Claude · Fable" wherever the pool is named, so the scope is never implicit.
+  const poolLabel = scoped ? `${providerLabel} · ${scopeName(scope)}` : providerLabel;
+
   const view = useMemo(
     () =>
       buildPoolView({
@@ -84,11 +106,12 @@ export function PoolCard(props: PoolCardProps) {
         range,
         burnWindowHours: burnWindow,
         futureUsage,
+        scope,
         maxPoints: MAX_POINTS,
         grants: resets?.grants,
         grantLeadMs: resets?.leadMs,
       }),
-    [accounts, history, nowMs, range, burnWindow, futureUsage, resets]
+    [accounts, history, nowMs, range, burnWindow, futureUsage, scope, resets]
   );
   const { summary, burn, members } = view;
   const multi = members.length > 1;
@@ -150,6 +173,27 @@ export function PoolCard(props: PoolCardProps) {
         <span className={styles.count}>
           {t('quota_management.pool_accounts_count', { count: accounts.length })}
         </span>
+        {onScopeChange && scopes.length > 1 && (
+          <div
+            className={styles.scope}
+            role="group"
+            aria-label={t('quota_management.pool_scope_label')}
+          >
+            {scopes.map((value) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={scope === value}
+                onClick={() => onScopeChange(value)}
+              >
+                <span>{scopeName(value)}</span>
+                <span className={styles.scopeValue}>
+                  {formatPercent(poolRemaining(accounts, value))}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       <div className={styles.summary}>
@@ -160,6 +204,11 @@ export function PoolCard(props: PoolCardProps) {
               capacity: formatPercent(summary.capacity),
             })}
           </span>
+          {scoped && (
+            <span className={styles.heroScope}>
+              {t(`quota_management.pool_scope_${scope}_limit`)}
+            </span>
+          )}
           {plans.length === 1 && <span className={styles.plan}>{plans[0]}</span>}
         </p>
 
@@ -268,7 +317,7 @@ export function PoolCard(props: PoolCardProps) {
             t('quota_management.pool_tooltip_left', { value: formatPercent(value) })
           }
           ariaLabel={t('quota_management.pool_chart_label', {
-            provider: providerLabel,
+            provider: poolLabel,
             remaining: formatPercent(summary.remaining),
             capacity: formatPercent(summary.capacity),
           })}
@@ -287,16 +336,19 @@ export function PoolCard(props: PoolCardProps) {
           seriesLabel={t('quota_management.pool_legend_burn')}
           formatTick={(value) => formatRate(value)}
           formatReadout={formatRate}
-          ariaLabel={t('quota_management.pool_drain_chart_label', { provider: providerLabel })}
+          ariaLabel={t('quota_management.pool_drain_chart_label', { provider: poolLabel })}
           initialWidth={initialChartWidth}
           height={chartHeight}
         />
       )}
 
-      {(!view.hasHistory || view.missing.length > 0) && (
+      {(!view.hasHistory || view.missing.length > 0 || view.blocked.length > 0) && (
         <ul className={styles.notes}>
           {!view.hasHistory && members.length > 0 && (
             <li>{t('quota_management.pool_no_history')}</li>
+          )}
+          {view.blocked.length > 0 && (
+            <li>{t('quota_management.pool_fable_blocked', { count: view.blocked.length })}</li>
           )}
           {view.missing.length > 0 && (
             <li>{t('quota_management.pool_missing_data', { count: view.missing.length })}</li>
@@ -306,8 +358,9 @@ export function PoolCard(props: PoolCardProps) {
 
       {showAccounts && accounts.length > 0 && (
         <PoolAccountRows
-          caption={t('quota_management.pool_table_label', { provider: providerLabel })}
+          caption={t('quota_management.pool_table_label', { provider: poolLabel })}
           accounts={accounts}
+          scope={scope}
           color={color}
           showEmails={showEmails}
           nowMs={nowMs}

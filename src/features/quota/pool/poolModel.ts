@@ -18,19 +18,26 @@
  *   `leadMs` before the grant expires, `limit` when the account runs dry, `off`
  *   never. A grant that requires the limit (Claude) is refused while the account
  *   has quota; an `expiry` grant then keeps waiting for the limit until it expires.
+ * - A pool is measured against one scope: every account's weekly window, or its
+ *   Fable-scoped weekly window. History and burn follow the same scope. In the
+ *   Fable scope an account at its account-wide weekly limit is blocked: its Fable
+ *   quota still counts toward the total, but demand skips it until that limit
+ *   resets, and the pool is empty once nothing unblocked has quota left.
  */
 
 import { HOUR_MS, MINUTE_MS } from '@/utils/time/durations';
 import { WEEK_MS } from './signals';
-import type {
-  HistorySample,
-  HistoryWindow,
-  QuotaReading,
-  QuotaWindowReading,
-  ResolvedAccountQuota,
-  ResolvedWindow,
-  SeriesPoint,
-  StepUpEvent,
+import {
+  scopedHistoryWindow,
+  type HistorySample,
+  type HistoryWindow,
+  type PoolScope,
+  type QuotaReading,
+  type QuotaWindowReading,
+  type ResolvedAccountQuota,
+  type ResolvedWindow,
+  type SeriesPoint,
+  type StepUpEvent,
 } from './types';
 
 export const SIMULATION_STEP_MS = 15 * MINUTE_MS;
@@ -89,9 +96,9 @@ const fresherFirst = (left: QuotaReading, right: QuotaReading) => {
  */
 export function pickReading(
   readings: readonly QuotaReading[],
-  kind: 'weekly' | 'fiveHour'
+  kind: 'weekly' | 'fiveHour' | 'fable'
 ): QuotaReading | null {
-  const withWindow = readings.filter((reading) => reading[kind] !== null);
+  const withWindow = readings.filter((reading) => (reading[kind] ?? null) !== null);
   const live = withWindow.filter((reading) => reading.source !== 'history').sort(fresherFirst);
   if (live.length > 0) return live[0];
   const history = withWindow.filter((reading) => reading.source === 'history').sort(fresherFirst);
@@ -104,11 +111,14 @@ export function resolveAccountQuota(
 ): ResolvedAccountQuota {
   const weeklyReading = pickReading(readings, 'weekly');
   const fiveHourReading = pickReading(readings, 'fiveHour');
+  // Chosen on its own: the freshest source may not report the Fable window.
+  const fableReading = pickReading(readings, 'fable');
   const primary = weeklyReading ?? fiveHourReading;
   const plan = readings.find((reading) => reading.plan)?.plan;
   return {
     weekly: weeklyReading?.weekly ? rollWindow(weeklyReading.weekly, nowMs) : null,
     fiveHour: fiveHourReading?.fiveHour ? rollWindow(fiveHourReading.fiveHour, nowMs) : null,
+    fable: fableReading?.fable ? rollWindow(fableReading.fable, nowMs) : null,
     source: primary?.source ?? null,
     observedAtMs: primary?.observedAtMs ?? null,
     ...(plan ? { plan } : {}),
@@ -127,6 +137,12 @@ export interface BurnIndex {
   times: number[];
   /** prefix[i] = summed positive increases up to and including sample i. */
   prefix: number[];
+  /**
+   * Time of the first sample that records the scope for a pool account; null
+   * when none does. Samples before it say nothing about the burn, so they do
+   * not count as coverage (the Fable window is recorded later than the weekly).
+   */
+  recordedFromMs: number | null;
 }
 
 /**
@@ -135,24 +151,28 @@ export interface BurnIndex {
  */
 export function buildBurnIndex(
   samples: readonly HistorySample[],
-  accountIds: ReadonlySet<string>
+  accountIds: ReadonlySet<string>,
+  scope: PoolScope = 'all'
 ): BurnIndex {
   const last = new Map<string, number>();
   const times: number[] = new Array(samples.length);
   const prefix: number[] = new Array(samples.length);
   let running = 0;
+  let recordedFromMs: number | null = null;
   samples.forEach((sample, index) => {
     for (const account of sample.accounts) {
-      if (!account.weekly || !accountIds.has(account.id)) continue;
-      const used = effectiveUsed(account.weekly, sample.t);
+      const window = scopedHistoryWindow(account, scope);
+      if (!window || !accountIds.has(account.id)) continue;
+      const used = effectiveUsed(window, sample.t);
       const previous = last.get(account.id);
       if (previous !== undefined && used > previous) running += used - previous;
       last.set(account.id, used);
+      if (recordedFromMs === null) recordedFromMs = sample.t;
     }
     times[index] = sample.t;
     prefix[index] = running;
   });
-  return { times, prefix };
+  return { times, prefix, recordedFromMs };
 }
 
 /** First index with times[index] >= target. */
@@ -175,7 +195,8 @@ export interface BurnRate {
 }
 
 export function computeBurnRate(index: BurnIndex, endMs: number, windowHours: number): BurnRate {
-  const startMs = endMs - windowHours * HOUR_MS;
+  if (index.recordedFromMs === null) return { ratePerHour: 0, coveredHours: 0, sufficient: false };
+  const startMs = Math.max(endMs - windowHours * HOUR_MS, index.recordedFromMs);
   const first = lowerBound(index.times, startMs);
   const last = lowerBound(index.times, endMs + 1) - 1;
   if (last <= first) return { ratePerHour: 0, coveredHours: 0, sufficient: false };
@@ -200,11 +221,15 @@ export function computeBurnSeries(
   const windowMs = windowHours * HOUR_MS;
   const minCoveredMs = windowMs * MIN_BURN_COVERAGE;
   const points: SeriesPoint[] = [];
+  const recordedFromMs = index.recordedFromMs;
+  if (recordedFromMs === null) return points;
   let first = 0;
-  for (let i = lowerBound(index.times, fromMs - windowMs); i < index.times.length; i += 1) {
+  const startIndex = lowerBound(index.times, Math.max(fromMs - windowMs, recordedFromMs));
+  for (let i = startIndex; i < index.times.length; i += 1) {
     const t = index.times[i];
     if (t > toMs) break;
-    while (index.times[first] < t - windowMs) first += 1;
+    // Coverage never reaches back before the scope was first recorded.
+    while (index.times[first] < Math.max(t - windowMs, recordedFromMs)) first += 1;
     const coveredMs = t - index.times[first];
     if (t < fromMs || coveredMs < minCoveredMs || coveredMs <= 0) continue;
     points.push({ t, value: ((index.prefix[i] - index.prefix[first]) * HOUR_MS) / coveredMs });
@@ -224,19 +249,25 @@ export interface RecordedSeries {
  * recorded window forward; before its first record it is back-filled with that
  * first record, and an account the file never mentions contributes its current
  * live remaining (`fallbackRemaining`) so the line stays on the pool's scale.
+ * The line starts at the first sample that records the scope for any pool
+ * account: before that there is nothing recorded to draw.
  */
 export function buildRecordedSeries(
   samples: readonly HistorySample[],
   accounts: ReadonlyArray<{ id: string; fallbackRemaining: number }>,
   fromMs: number,
-  toMs: number
+  toMs: number,
+  scope: PoolScope = 'all'
 ): RecordedSeries {
   const ids = new Set(accounts.map((account) => account.id));
   const current = new Map<string, HistoryWindow>();
-  for (const sample of samples) {
-    for (const account of sample.accounts) {
-      if (account.weekly && ids.has(account.id) && !current.has(account.id)) {
-        current.set(account.id, account.weekly);
+  let firstRecorded = samples.length;
+  for (let index = 0; index < samples.length; index += 1) {
+    for (const account of samples[index].accounts) {
+      const window = scopedHistoryWindow(account, scope);
+      if (window && ids.has(account.id) && !current.has(account.id)) {
+        current.set(account.id, window);
+        firstRecorded = Math.min(firstRecorded, index);
       }
     }
     if (current.size === ids.size) break;
@@ -247,7 +278,7 @@ export function buildRecordedSeries(
   accounts.forEach((account) => (perAccount[account.id] = []));
   const stepUps: StepUpEvent[] = [];
   const startIndex = Math.max(
-    0,
+    firstRecorded,
     lowerBound(
       samples.map((sample) => sample.t),
       fromMs
@@ -257,7 +288,8 @@ export function buildRecordedSeries(
 
   samples.forEach((sample, index) => {
     for (const account of sample.accounts) {
-      if (account.weekly && ids.has(account.id)) current.set(account.id, account.weekly);
+      const window = scopedHistoryWindow(account, scope);
+      if (window && ids.has(account.id)) current.set(account.id, window);
     }
     if (index < startIndex || sample.t > toMs) return;
 
@@ -295,6 +327,12 @@ export interface SimulationAccount {
   used: number;
   resetAtMs: number | null;
   periodMs: number;
+  /**
+   * The account cannot serve before this instant (Fable scope: its account-wide
+   * weekly limit is reached). `Infinity` when the end of the block is unknown.
+   * Its quota still counts toward the pool total.
+   */
+  blockedUntilMs?: number | null;
 }
 
 export const GRANT_POLICIES = ['expiry', 'limit', 'off'] as const;
@@ -339,7 +377,10 @@ export interface SimulationResult {
   perAccount: Record<string, SeriesPoint[]>;
   /** Weekly resets and grant spends, time-ordered. */
   stepUps: StepUpEvent[];
-  /** When the whole pool first reaches 0, or null if not before `endMs`. */
+  /**
+   * When the pool first cannot serve: every account is at 0 or blocked. Null if
+   * that does not happen before `endMs`.
+   */
   poolEmptyAtMs: number | null;
   /** The first single account to reach 0 (possibly already at `startMs`). */
   firstEmpty: { accountId: string; atMs: number } | null;
@@ -358,7 +399,12 @@ interface SimState {
   remaining: number;
   resetAtMs: number | null;
   periodMs: number;
+  blockedUntilMs: number | null;
 }
+
+/** Has quota and is free to serve at `atMs`. */
+const canServe = (entry: SimState, atMs: number) =>
+  entry.remaining > EPSILON && (entry.blockedUntilMs === null || atMs >= entry.blockedUntilMs);
 
 interface GrantState extends SimulationGrant {
   spent: number;
@@ -401,12 +447,14 @@ export function simulatePool(
 
   const state: SimState[] = accounts.map((account, order) => {
     const periodMs = account.periodMs > 0 ? account.periodMs : WEEK_MS;
+    const blockedUntilMs = account.blockedUntilMs ?? null;
     const entry: SimState = {
       id: account.id,
       order,
       remaining: 100 - clampPercent(account.used),
       resetAtMs: account.resetAtMs,
       periodMs,
+      blockedUntilMs: blockedUntilMs !== null && blockedUntilMs > startMs ? blockedUntilMs : null,
     };
     // A reset at or before the start already happened: the window is fresh.
     while (entry.resetAtMs !== null && entry.resetAtMs <= startMs) {
@@ -450,7 +498,7 @@ export function simulatePool(
     state.forEach((entry) => result.perAccount[entry.id].push({ t, value: entry.remaining }));
   };
   const checkPoolEmpty = (atMs: number) => {
-    if (result.poolEmptyAtMs === null && state.every((entry) => entry.remaining <= EPSILON)) {
+    if (result.poolEmptyAtMs === null && state.every((entry) => !canServe(entry, atMs))) {
       result.poolEmptyAtMs = atMs;
     }
   };
@@ -498,8 +546,9 @@ export function simulatePool(
     let demand = ratePerMs * (toMs - fromMs);
     let spent = 0;
     // Re-pick after each account runs dry: a grant may have just restored it.
+    // A block only lifts at an event boundary, so `fromMs` decides it for the span.
     while (demand > EPSILON) {
-      const entry = state.filter((item) => item.remaining > EPSILON).sort(bySoonestReset)[0];
+      const entry = state.filter((item) => canServe(item, fromMs)).sort(bySoonestReset)[0];
       if (!entry) break;
       const take = Math.min(entry.remaining, demand);
       entry.remaining -= take;
@@ -555,7 +604,7 @@ export function simulatePool(
   }
   fireDueGrants(startMs);
   checkPoolEmpty(startMs);
-  const drainOrder = state.filter((entry) => entry.remaining > EPSILON).sort(bySoonestReset);
+  const drainOrder = state.filter((entry) => canServe(entry, startMs)).sort(bySoonestReset);
   result.activeAccountId = drainOrder[0]?.id ?? null;
   result.nextAccountId = drainOrder[1]?.id ?? null;
   let t = startMs;
@@ -568,7 +617,10 @@ export function simulatePool(
       const consider = (at: number | null) => {
         if (at !== null && at > cursor && at <= stepEnd) nextEvent = Math.min(nextEvent, at);
       };
-      state.forEach((entry) => consider(entry.resetAtMs));
+      state.forEach((entry) => {
+        consider(entry.resetAtMs);
+        consider(entry.blockedUntilMs);
+      });
       grants.forEach((grant) => {
         if (grant.retrying) consider(grant.expiresAtMs);
         else if (grant.spent === 0 && grant.left > 0) consider(grant.dueAtMs);

@@ -5,10 +5,14 @@
  * - credential signals: rate-limit response headers the hub cached per credential;
  * - claude-seat-pacer: the plugin's own usage-endpoint snapshots (Claude only);
  * - history.json: the recorder's 5-minute samples.
+ *
+ * Claude accounts carry a third window next to weekly and 5-hour: the weekly
+ * limit scoped to Fable, which the pool can be measured against on its own.
  */
 
 import type { AuthFileQuotaSignals } from '@/types/authFile';
-import type { SeatPacerAccount } from '@/services/api/seatPacer';
+import type { SeatPacerAccount, SeatPacerWindow } from '@/services/api/seatPacer';
+import { isFableModelName } from '@/utils/quota/validators';
 import { DAY_MS, HOUR_MS, MINUTE_MS } from '@/utils/time/durations';
 import { parseTimestampMs } from '@/utils/timestamp';
 import type { HistoryAccountSample, QuotaReading, QuotaWindowReading } from './types';
@@ -48,9 +52,17 @@ const signalReader = (signals: Record<string, string>) => {
 
 const CLAUDE_PREFIX = 'anthropic-ratelimit-unified';
 
+/**
+ * The unified headers name the Fable-scoped weekly window `7d_oi`. The name is
+ * opaque: it is read as Fable because it carries the same utilization and reset
+ * instant as the usage endpoint's `weekly_scoped` Fable limit. The seat-pacer
+ * names its scope, so its reading wins whenever it is at least as fresh.
+ */
+const CLAUDE_FABLE_WINDOW = '7d_oi';
+
 const readClaudeWindow = (
   read: (name: string) => string | undefined,
-  window: '5h' | '7d',
+  window: string,
   periodMs: number
 ): QuotaWindowReading | null => {
   const utilization = readNumber(read(`${CLAUDE_PREFIX}-${window}-utilization`));
@@ -71,8 +83,9 @@ export function readClaudeSignals(
   const read = signalReader(signals);
   const weekly = readClaudeWindow(read, '7d', WEEK_MS);
   const fiveHour = readClaudeWindow(read, '5h', FIVE_HOUR_MS);
-  if (!weekly && !fiveHour) return null;
-  return { source: 'signals', observedAtMs, weekly, fiveHour };
+  const fable = readClaudeWindow(read, CLAUDE_FABLE_WINDOW, WEEK_MS);
+  if (!weekly && !fiveHour && !fable) return null;
+  return { source: 'signals', observedAtMs, weekly, fiveHour, fable };
 }
 
 interface CodexWindow {
@@ -146,8 +159,11 @@ export function readCredentialSignals(
 }
 
 export function readSeatPacerAccount(account: SeatPacerAccount): QuotaReading | null {
-  const toReading = (kind: string, periodMs: number): QuotaWindowReading | null => {
-    const window = account.windows.find((item) => item.kind === kind);
+  const toReading = (
+    matches: (window: SeatPacerWindow) => boolean,
+    periodMs: number
+  ): QuotaWindowReading | null => {
+    const window = account.windows.find(matches);
     if (!window) return null;
     return {
       used: clampPercent(window.utilization * 100),
@@ -156,23 +172,28 @@ export function readSeatPacerAccount(account: SeatPacerAccount): QuotaReading | 
       ...(window.status ? { status: window.status } : {}),
     };
   };
-  const weekly = toReading('seven_day', WEEK_MS);
-  const fiveHour = toReading('five_hour', FIVE_HOUR_MS);
-  if (!weekly && !fiveHour) return null;
-  return { source: 'seat-pacer', observedAtMs: account.observedAtMs, weekly, fiveHour };
+  const weekly = toReading((window) => window.kind === 'seven_day', WEEK_MS);
+  const fiveHour = toReading((window) => window.kind === 'five_hour', FIVE_HOUR_MS);
+  // `weekly_scoped` covers any model-scoped limit; only the Fable one is pooled.
+  const fable = toReading(
+    (window) => window.kind === 'weekly_scoped' && isFableModelName(window.scope),
+    WEEK_MS
+  );
+  if (!weekly && !fiveHour && !fable) return null;
+  return { source: 'seat-pacer', observedAtMs: account.observedAtMs, weekly, fiveHour, fable };
 }
 
 export function readHistoryAccount(
   sample: HistoryAccountSample,
   sampleAtMs: number
 ): QuotaReading | null {
-  if (!sample.weekly && !sample.fiveHour) return null;
+  if (!sample.weekly && !sample.fiveHour && !sample.fable) return null;
+  const weekLong = (window: HistoryAccountSample['weekly']): QuotaWindowReading | null =>
+    window ? { used: window.used, resetAtMs: window.resetAtMs, periodMs: WEEK_MS } : null;
   return {
     source: 'history',
     observedAtMs: sample.seenMs ?? sampleAtMs,
-    weekly: sample.weekly
-      ? { used: sample.weekly.used, resetAtMs: sample.weekly.resetAtMs, periodMs: WEEK_MS }
-      : null,
+    weekly: weekLong(sample.weekly),
     fiveHour: sample.fiveHour
       ? {
           used: sample.fiveHour.used,
@@ -180,6 +201,7 @@ export function readHistoryAccount(
           periodMs: FIVE_HOUR_MS,
         }
       : null,
+    fable: weekLong(sample.fable ?? null),
     ...(sample.plan ? { plan: sample.plan } : {}),
   };
 }

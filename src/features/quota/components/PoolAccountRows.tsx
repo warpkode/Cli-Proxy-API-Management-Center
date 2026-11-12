@@ -5,14 +5,17 @@
 
 import { useTranslation } from 'react-i18next';
 import { grantKey, type ResetGrant } from '@/services/api/quotaResets';
-import { accountLabel, type PoolAccount } from '../pool/accounts';
+import { accountLabel, fableBlockedUntil, type PoolAccount } from '../pool/accounts';
 import { durationParts, formatInstant, formatPercent } from '../pool/format';
 import type { GrantOutcome } from '../pool/poolModel';
+import { scopedWindow, type PoolScope } from '../pool/types';
 import styles from './PoolAccountRows.module.scss';
 
 export interface PoolAccountRowsProps {
   caption: string;
   accounts: readonly PoolAccount[];
+  /** The limit each row's meter and status describe. */
+  scope?: PoolScope;
   color: string;
   showEmails: boolean;
   nowMs: number;
@@ -39,6 +42,7 @@ interface Row {
 
 export function PoolAccountRows(props: PoolAccountRowsProps) {
   const { caption, accounts, color, showEmails, nowMs, plan, grants, outcomes } = props;
+  const scope = props.scope ?? 'all';
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage;
   const when = (ms: number) => formatInstant(ms, nowMs, locale);
@@ -65,11 +69,15 @@ export function PoolAccountRows(props: PoolAccountRowsProps) {
       .sort((left, right) => left.atMs - right.atMs)[0];
 
   const rows: Row[] = accounts.map((account) => {
-    const weekly = account.quota.weekly;
+    const weekly = scopedWindow(account.quota, scope);
     const remaining = weekly ? Math.max(0, 100 - weekly.used) : null;
     const emptyAt = plan.emptyAt[account.key] ?? null;
     const { kind, untilMs } = account.status;
     const spend = plannedSpend(account.key);
+    // The account status speaks for the account-wide window; the Fable window
+    // carries its own.
+    const exhausted =
+      scope === 'fable' ? weekly?.status === 'rejected' : kind === 'weekly_exhausted';
 
     if (remaining === null) {
       return {
@@ -81,7 +89,7 @@ export function PoolAccountRows(props: PoolAccountRowsProps) {
         rank: 5,
       };
     }
-    if (remaining <= 0 || kind === 'weekly_exhausted') {
+    if (remaining <= 0 || exhausted) {
       const refill =
         spend && (weekly?.resetAtMs === null || spend.atMs < (weekly?.resetAtMs ?? Infinity))
           ? t('quota_management.pool_row_reset_planned', { time: when(spend.atMs) })
@@ -95,6 +103,17 @@ export function PoolAccountRows(props: PoolAccountRowsProps) {
         lead: t('quota_management.pool_row_empty'),
         status: refill,
         rank: 1,
+      };
+    }
+    if (scope === 'fable' && fableBlockedUntil(account) !== null) {
+      // Fable quota is left, but the account-wide weekly limit holds the account.
+      return {
+        account,
+        remaining,
+        tone: 'held',
+        lead: t('quota_management.pool_row_weekly_limit'),
+        status: untilMs ? t('quota_management.pool_row_back', { time: when(untilMs) }) : '',
+        rank: 2,
       };
     }
     if (kind === 'five_hour_blocked' || kind === 'cooldown') {
@@ -153,7 +172,7 @@ export function PoolAccountRows(props: PoolAccountRowsProps) {
     <ul className={styles.rows} aria-label={caption}>
       {rows.map(({ account, remaining, tone, lead, status }) => {
         const label = accountLabel(account.file, showEmails);
-        const weeklyReset = account.quota.weekly?.resetAtMs ?? null;
+        const weeklyReset = scopedWindow(account.quota, scope)?.resetAtMs ?? null;
         const open = grants.filter((grant) => grant.accountId === account.key).length;
         return (
           <li key={account.key} className={styles.row} data-tone={tone}>
@@ -177,7 +196,12 @@ export function PoolAccountRows(props: PoolAccountRowsProps) {
               <span
                 className={styles.meter}
                 role="meter"
-                aria-label={t('quota_management.pool_row_meter', { name: label.text })}
+                aria-label={t(
+                  scope === 'fable'
+                    ? 'quota_management.pool_row_meter_fable'
+                    : 'quota_management.pool_row_meter',
+                  { name: label.text }
+                )}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(remaining ?? 0)}

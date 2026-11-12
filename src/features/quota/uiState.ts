@@ -10,6 +10,7 @@ import {
   type BurnWindowHours,
   type FutureUsageMode,
 } from './pool/poolModel';
+import { isPoolScope, type PoolScope } from './pool/types';
 
 export const POOL_METRICS = ['remaining', 'drain'] as const;
 export type PoolMetric = (typeof POOL_METRICS)[number];
@@ -19,6 +20,8 @@ export type QuotaUiState = {
   tab?: QuotaTabId;
   sortMode?: QuotaSortMode;
   metric?: PoolMetric;
+  /** Which weekly limit the Claude pool card measures. */
+  poolScope?: PoolScope;
   burnWindow?: BurnWindowHours;
   futureUsage?: FutureUsageMode;
   showAccounts?: boolean;
@@ -60,6 +63,7 @@ export const readQuotaUiState = (): QuotaUiState | null => {
       tab: isQuotaTabId(parsed.tab) ? parsed.tab : undefined,
       sortMode: isQuotaSortMode(parsed.sortMode) ? parsed.sortMode : undefined,
       metric: isPoolMetric(parsed.metric) ? parsed.metric : undefined,
+      poolScope: isPoolScope(parsed.poolScope) ? parsed.poolScope : undefined,
       burnWindow: isBurnWindow(parsed.burnWindow) ? parsed.burnWindow : undefined,
       futureUsage: isFutureUsageMode(parsed.futureUsage) ? parsed.futureUsage : undefined,
       showAccounts: readBoolean(parsed.showAccounts),

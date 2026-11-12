@@ -144,6 +144,107 @@ describe('pool card static render', () => {
   });
 });
 
+describe('pool scope switch (Fable weekly limit)', () => {
+  const noop = () => undefined;
+
+  test('the switch appears on Claude once an account reports Fable, with both totals', () => {
+    const markup = render({ onScopeChange: noop });
+    expect(markup).toContain('role="group" aria-label="Weekly limit"');
+    // All-model view stays selected; the Fable total is visible without switching.
+    expect(markup).toMatch(/aria-pressed="true"[^>]*><span>All models<\/span><span[^>]*>245%</);
+    expect(markup).toMatch(/aria-pressed="false"[^>]*><span>Fable<\/span><span[^>]*>170%</);
+    expect(text(markup)).not.toContain('Fable weekly limit');
+    expect(markup).toContain('aria-label="Claude pool: 245% of 400% remaining.');
+  });
+
+  test('no switch without a handler, without Fable data, or on Codex', () => {
+    expect(render()).not.toContain('aria-label="Weekly limit"');
+    const withoutFable = accounts
+      .filter((account) => account.provider === 'claude')
+      .map((account) => ({ ...account, quota: { ...account.quota, fable: null } }));
+    const plain = render({ accounts: withoutFable, scope: 'fable', onScopeChange: noop });
+    expect(plain).not.toContain('aria-label="Weekly limit"');
+    // A remembered Fable choice falls back to the all-model pool.
+    expect(text(plain)).toContain('245%');
+    expect(text(plain)).toContain('of 400%');
+
+    const codex = render({
+      provider: 'codex',
+      accounts: accounts.filter((account) => account.provider === 'codex'),
+      scope: 'fable',
+      onScopeChange: noop,
+    });
+    expect(codex).not.toContain('aria-label="Weekly limit"');
+    expect(text(codex)).toContain('of 100%');
+  });
+
+  test('the Fable scope re-measures the hero, stats and chart against the Fable limit', () => {
+    const markup = render({ scope: 'fable', onScopeChange: noop });
+    const plain = text(markup);
+    expect(markup).toMatch(/aria-pressed="true"[^>]*><span>Fable</);
+    expect(markup).toMatch(/aria-pressed="false"[^>]*><span>All models</);
+    // c1 40 + c2 70 + c3 60 left; c4 reports no Fable window.
+    expect(plain).toContain('170%');
+    expect(plain).toContain('of 300%');
+    expect(plain).toContain('Fable weekly limit');
+    expect(plain).toContain('4 accounts');
+    // Recorded Fable burn: c1 at 0.5%/h, c2 flat.
+    expect(plain).toContain('Burn, last 3h 0.5%/h');
+    expect(markup).toContain('aria-label="Claude · Fable pool: 170% of 300% remaining.');
+    // c3 has Fable quota but sits at its weekly limit; c4 has no Fable reading.
+    expect(plain).toContain(
+      '1 account is at its all-model weekly limit, so its Fable quota is unusable until that resets.'
+    );
+    expect(plain).toContain('1 account without cached quota data is not counted.');
+    expect(plain).not.toContain('No recorded history yet');
+    // Both chart series are still drawn in Claude's hue.
+    const lines = markup.match(/<path[^>]*style="stroke:var\(--brand-claude\)"[^>]*>/g) ?? [];
+    expect(lines).toHaveLength(2);
+  });
+
+  test('Fable account rows show the Fable window and name the weekly block', () => {
+    const markup = render({
+      scope: 'fable',
+      onScopeChange: noop,
+      showAccounts: true,
+      showEmails: true,
+    });
+    const plain = text(markup);
+    expect(markup).toContain('aria-label="Claude · Fable accounts"');
+    expect(markup).toContain('aria-label="alpha@example.com Fable weekly remaining"');
+    // c1 serves and outlasts its reset at 0.5%/h; c3 is held by the weekly limit,
+    // not shown as empty; c2 is next; c4 has nothing to show.
+    const order = ['alpha', 'charlie', 'bravo', 'delta'].map((name) =>
+      plain.indexOf(`${name}@example.com`)
+    );
+    expect(order).toEqual([...order].sort((left, right) => left - right));
+    expect(plain).toMatch(/alpha@example\.com 40% In use · lasts until its reset/);
+    expect(plain).toMatch(/charlie@example\.com 60% Weekly limit · back /);
+    expect(plain).toMatch(/bravo@example\.com 70% Up next/);
+    expect(plain).toMatch(/delta@example\.com — No data yet/);
+    expect(markup).toMatch(/data-tone="held"[^>]*>.*charlie@example\.com/);
+  });
+
+  test('the Fable scope shows no history note only once Fable was recorded', () => {
+    // Three days of samples, Fable in the last one only: a recorded line exists.
+    expect(text(render({ scope: 'fable', onScopeChange: noop }))).not.toContain(
+      'No recorded history yet'
+    );
+    const weeklyOnly: QuotaHistory = {
+      ...history,
+      samples: history.samples.map((sample) => ({
+        ...sample,
+        accounts: sample.accounts.map((account) => ({ ...account, fable: null })),
+      })),
+    };
+    const plain = text(render({ scope: 'fable', onScopeChange: noop, history: weeklyOnly }));
+    expect(plain).toContain('Not enough history');
+    expect(plain).toContain('No recorded history yet; the chart shows the projection only.');
+    // The all-model view of the same file is unaffected.
+    expect(text(render({ history: weeklyOnly }))).toContain('Burn, last 3h 1.5%/h');
+  });
+});
+
 describe('pool controls and header static render', () => {
   test('controls expose pressed states, the future-usage choice and the range', () => {
     const markup = renderToStaticMarkup(

@@ -8,15 +8,25 @@ import { classifyQuotaFiles } from '@/features/quota/logic';
 import {
   accountLabel,
   buildPoolAccounts,
+  fableBlockedUntil,
+  hasScopeData,
   maskEmail,
+  poolRemaining,
   resolveAccountStatus,
+  toSimulationAccounts,
 } from '@/features/quota/pool/accounts';
 import {
   fetchQuotaHistory,
   normalizeQuotaHistory,
   QUOTA_HISTORY_URL,
 } from '@/features/quota/pool/history';
-import { readClaudeSignals, readCodexSignals, WEEK_MS } from '@/features/quota/pool/signals';
+import {
+  readClaudeSignals,
+  readCodexSignals,
+  readHistoryAccount,
+  readSeatPacerAccount,
+  WEEK_MS,
+} from '@/features/quota/pool/signals';
 import {
   loadPoolSources,
   POOL_POLL_INTERVAL_MS,
@@ -69,6 +79,24 @@ describe('credential quota signals', () => {
     expect(readClaudeSignals({ 'X-Other': '1' }, null)).toBeNull();
   });
 
+  test('the 7d_oi headers become the Fable-scoped weekly window', () => {
+    const reading = readClaudeSignals(claudeSignals(0.4, NOW + 2 * DAY, 0.2, 0.5), NOW);
+    expect(reading?.fable).toEqual({
+      used: 50,
+      resetAtMs: sec(NOW + 2 * DAY),
+      periodMs: WEEK_MS,
+      status: 'allowed',
+    });
+    // An account that has not used Fable sends no such header: no window, not 0%.
+    expect(readClaudeSignals(claudeSignals(0.4, NOW + 2 * DAY), NOW)?.fable).toBeNull();
+    // The Fable window alone is still a reading.
+    expect(
+      readClaudeSignals({ 'anthropic-ratelimit-unified-7d_oi-utilization': '1' }, null)
+    ).toMatchObject({ weekly: null, fiveHour: null, fable: { used: 100, resetAtMs: null } });
+    // Codex has no model-scoped limit.
+    expect(readCodexSignals(codexSignals(55, NOW + 3 * DAY), NOW)?.fable).toBeUndefined();
+  });
+
   test('Codex windows are classified by length, not slot', () => {
     // Pro: weekly primary, empty secondary ("0" minutes).
     const pro = readCodexSignals(codexSignals(55, NOW + 3 * DAY), NOW);
@@ -108,12 +136,44 @@ describe('seat-pacer and history payloads', () => {
       observedAtMs: NOW - 60_000,
       source: 'usage-endpoint',
     });
-    expect(status?.accounts[0].windows.map((window) => window.kind)).toEqual([
-      'five_hour',
-      'seven_day',
-      'weekly_scoped',
+    expect(status?.accounts[0].windows.map((window) => [window.kind, window.scope])).toEqual([
+      ['five_hour', undefined],
+      ['seven_day', undefined],
+      ['weekly_scoped', 'opus'],
+      ['weekly_scoped', 'Fable'],
     ]);
     expect(normalizeSeatPacerStatus('nope')).toBeNull();
+  });
+
+  test('only the Fable-scoped weekly window is read as Fable', () => {
+    const [alpha, charlie] = normalizeSeatPacerStatus(seatPacerPayload())!.accounts;
+    // alpha carries an Opus-scoped window first; the Fable one is picked by scope.
+    expect(readSeatPacerAccount(alpha)).toMatchObject({
+      source: 'seat-pacer',
+      weekly: { used: 45 },
+      fable: { used: 60, resetAtMs: NOW + 2 * DAY, periodMs: WEEK_MS },
+    });
+    expect(readSeatPacerAccount(charlie)?.fable).toBeNull();
+    // The display name has appeared with and without the generation number.
+    const scoped = (scope?: string) =>
+      readSeatPacerAccount({
+        authId: 'a',
+        observedAtMs: NOW,
+        windows: [
+          {
+            kind: 'weekly_scoped',
+            utilization: 0.25,
+            resetsAtMs: NOW + DAY,
+            active: true,
+            severity: 'normal',
+            ...(scope ? { scope } : {}),
+          },
+        ],
+      });
+    expect(scoped('fable 5')?.fable?.used).toBe(25);
+    expect(scoped(' FABLE ')?.fable?.used).toBe(25);
+    expect(scoped('Opus')).toBeNull();
+    expect(scoped()).toBeNull();
   });
 
   test('history.json converts epoch seconds, sorts samples and rejects other versions', () => {
@@ -130,6 +190,21 @@ describe('seat-pacer and history payloads', () => {
       weekly: { used: 20, resetAtMs: sec(NOW + 2 * DAY) },
       src: 'usage',
     });
+    // The Fable window is optional: absent until the recorder writes it.
+    const first = history!.samples[0].accounts;
+    expect(first.find((account) => account.id === 'c1')?.fable).toEqual({
+      used: 48,
+      resetAtMs: sec(NOW + 2 * DAY),
+    });
+    expect(first.find((account) => account.id === 'x1')?.fable).toBeNull();
+    const older = normalizeQuotaHistory(historyPayload(3))!.samples[0].accounts;
+    expect(older.find((account) => account.id === 'c1')?.fable).toBeNull();
+    expect(
+      readHistoryAccount(
+        first.find((account) => account.id === 'c1')!,
+        NOW - DAY
+      )?.fable
+    ).toEqual({ used: 48, resetAtMs: sec(NOW + 2 * DAY), periodMs: WEEK_MS });
     expect(normalizeQuotaHistory({ ...payload, version: 2 })).toBeNull();
     expect(normalizeQuotaHistory({ samples: [{ t: 1, a: [{ p: 'claude' }] }] })?.samples).toEqual([
       { t: 1000, accounts: [] },
@@ -187,6 +262,51 @@ describe('pool accounts', () => {
       provider: 'codex',
       quota: { plan: 'pro', weekly: { used: 55 } },
     });
+  });
+
+  test('the Fable window is resolved on its own, from whichever source reports it', () => {
+    const accounts = buildPoolAccounts(sources(), NOW);
+    const byKey = Object.fromEntries(accounts.map((account) => [account.key, account]));
+    // c1: only the seat-pacer names a Fable window.
+    expect(byKey.c1.quota.fable).toMatchObject({ used: 60, resetAtMs: NOW + 2 * DAY });
+    // c2: the cached headers beat the recorded sample.
+    expect(byKey.c2.quota.fable).toMatchObject({ used: 30, resetAtMs: sec(NOW + 5 * DAY) });
+    // c3: weekly comes from the fresher headers, and so does Fable; the account
+    // is at its weekly limit with Fable quota left.
+    expect(byKey.c3.quota.fable?.used).toBe(40);
+    expect(byKey.c3.status.kind).toBe('weekly_exhausted');
+    expect(fableBlockedUntil(byKey.c3)).toBe(sec(NOW + 20 * HOUR));
+    expect(fableBlockedUntil(byKey.c1)).toBeNull();
+    // c4 and Codex report none.
+    expect(byKey.c4.quota.fable).toBeNull();
+    expect(byKey.x1.quota.fable).toBeNull();
+
+    const claude = accounts.filter((account) => account.provider === 'claude');
+    expect(hasScopeData(claude, 'fable')).toBe(true);
+    expect(hasScopeData([byKey.c4, byKey.x1], 'fable')).toBe(false);
+    // 40 + 70 + 60 left of the three that report it; all four report weekly.
+    expect(poolRemaining(claude, 'fable')).toBe(170);
+    expect(poolRemaining(claude, 'all')).toBe(245);
+    // Only the Fable scope marks the weekly-limited account as blocked.
+    expect(toSimulationAccounts(claude, 'fable').map((account) => account.blockedUntilMs)).toEqual([
+      undefined,
+      undefined,
+      sec(NOW + 20 * HOUR),
+    ]);
+    expect(
+      toSimulationAccounts(claude).every((account) => account.blockedUntilMs === undefined)
+    ).toBe(true);
+  });
+
+  test('a recorded Fable window stands in when no live source reports one', () => {
+    const base = sources();
+    const files = base.files.map((entry) =>
+      entry.file.authIndex === 'c2'
+        ? { ...entry, file: { ...entry.file, quotaSignals: undefined } }
+        : entry
+    );
+    const c2 = buildPoolAccounts({ ...base, files }, NOW).find((account) => account.key === 'c2');
+    expect(c2?.quota.fable).toMatchObject({ used: 30, resetAtMs: sec(NOW + 5 * DAY) });
   });
 
   test('history is used when no live source reports an account', () => {

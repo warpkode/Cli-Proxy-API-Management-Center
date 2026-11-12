@@ -42,7 +42,7 @@ import {
   type GrantOutcome,
 } from './pool/poolModel';
 import { buildPoolView } from './pool/poolView';
-import { POOL_PROVIDERS, isPoolProvider, type PoolProvider } from './pool/types';
+import { POOL_PROVIDERS, isPoolProvider, type PoolProvider, type PoolScope } from './pool/types';
 import { usePoolSources, type OptionalSourceState } from './pool/usePoolSources';
 import { QUOTA_ADAPTERS, getQuotaSetter } from './providers';
 import type { QuotaProviderType } from './providers/types';
@@ -73,6 +73,7 @@ export function QuotaPage() {
   const [stored] = useState(() => readQuotaUiState());
   const [tab, setTab] = useState<QuotaTabId>(stored?.tab ?? 'all');
   const [metric, setMetric] = useState<PoolMetric>(stored?.metric ?? 'remaining');
+  const [poolScope, setPoolScope] = useState<PoolScope>(stored?.poolScope ?? 'all');
   const [burnWindow, setBurnWindow] = useState<BurnWindowHours>(stored?.burnWindow ?? 3);
   const [futureUsage, setFutureUsage] = useState<FutureUsageMode>(stored?.futureUsage ?? 'same');
   const [showAccounts, setShowAccounts] = useState(stored?.showAccounts ?? true);
@@ -215,6 +216,10 @@ export function QuotaPage() {
     setMetric(next);
     writeQuotaUiState({ metric: next });
   }, []);
+  const handlePoolScopeChange = useCallback((next: PoolScope) => {
+    setPoolScope(next);
+    writeQuotaUiState({ poolScope: next });
+  }, []);
   const handleBurnWindowChange = useCallback((next: BurnWindowHours) => {
     setBurnWindow(next);
     writeQuotaUiState({ burnWindow: next });
@@ -306,6 +311,8 @@ export function QuotaPage() {
                       metric={metric}
                       burnWindow={burnWindow}
                       futureUsage={futureUsage}
+                      scope={poolScope}
+                      onScopeChange={handlePoolScopeChange}
                       showAccounts={showAccounts}
                       showEmails={showEmails}
                       resolvedTheme={resolvedTheme}

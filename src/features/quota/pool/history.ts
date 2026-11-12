@@ -6,8 +6,9 @@
  * than through apiClient. It is optional; a missing file means "no recorded
  * line" and the pool view shows the projection only.
  *
- * Wire format (epoch seconds, `w` = weekly, `f` = 5-hour, 0..100):
- * `{ version: 1, interval, updated, samples: [{ t, a: [{ id, p, on, w, f, seen, src, plan? }] }] }`
+ * Wire format (epoch seconds, `w` = weekly, `f` = 5-hour, `wf` = weekly Fable, 0..100):
+ * `{ version: 1, interval, updated, samples: [{ t, a: [{ id, p, on, w, f, wf?, seen, src, plan? }] }] }`
+ * `wf` is optional: samples written before the recorder learned it have none.
  */
 
 import { normalizeAuthIndex } from '@/utils/authIndex';
@@ -41,6 +42,7 @@ const readAccount = (value: unknown): HistoryAccountSample | null => {
     on: value.on !== false,
     weekly: readWindow(value.w),
     fiveHour: readWindow(value.f),
+    fable: readWindow(value.wf),
     seenMs: readInstantMs(value.seen as number | string | undefined),
     ...(src ? { src } : {}),
     ...(plan ? { plan } : {}),

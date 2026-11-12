@@ -11,7 +11,20 @@ export const HOUR = 3_600_000;
 export const DAY = 24 * HOUR;
 const sec = (ms: number) => Math.floor(ms / 1000);
 
-export const claudeSignals = (used7d: number, reset7dMs: number, used5h = 0.2) => ({
+/** `usedFable` adds the Fable-scoped weekly window (`7d_oi`), which resets with the weekly one. */
+export const claudeSignals = (
+  used7d: number,
+  reset7dMs: number,
+  used5h = 0.2,
+  usedFable?: number
+) => ({
+  ...(usedFable === undefined
+    ? {}
+    : {
+        'Anthropic-Ratelimit-Unified-7d_oi-Utilization': String(usedFable),
+        'Anthropic-Ratelimit-Unified-7d_oi-Reset': String(sec(reset7dMs)),
+        'Anthropic-Ratelimit-Unified-7d_oi-Status': usedFable >= 1 ? 'rejected' : 'allowed',
+      }),
   'Anthropic-Ratelimit-Unified-5h-Utilization': String(used5h),
   'Anthropic-Ratelimit-Unified-5h-Reset': String(sec(NOW + 3 * HOUR)),
   'Anthropic-Ratelimit-Unified-5h-Status': 'allowed',
@@ -59,7 +72,10 @@ export const credentialsPayload = (): AuthFilesResponse => ({
       status: 'active',
       disabled: false,
       cooldowns: [],
-      quota: { observed_at: observed(NOW - 5 * HOUR), signals: claudeSignals(0.1, NOW + 5 * DAY) },
+      quota: {
+        observed_at: observed(NOW - 5 * HOUR),
+        signals: claudeSignals(0.1, NOW + 5 * DAY, 0.2, 0.3),
+      },
     },
     {
       name: 'claude-charlie@example.com.json',
@@ -77,7 +93,11 @@ export const credentialsPayload = (): AuthFilesResponse => ({
           remaining_seconds: 72000,
         },
       ],
-      quota: { observed_at: observed(NOW - HOUR), signals: claudeSignals(1, NOW + 20 * HOUR) },
+      // Weekly limit reached with Fable quota left: unusable until the weekly reset.
+      quota: {
+        observed_at: observed(NOW - HOUR),
+        signals: claudeSignals(1, NOW + 20 * HOUR, 0.2, 0.4),
+      },
     },
     {
       // Idle account whose cached weekly reset already passed.
@@ -141,6 +161,14 @@ export const seatPacerPayload = () => ({
             severity: 'normal',
             scope: 'opus',
           },
+          {
+            kind: 'weekly_scoped',
+            utilization: 0.6,
+            resets_at: observed(NOW + 2 * DAY),
+            active: false,
+            severity: 'normal',
+            scope: 'Fable',
+          },
         ],
       },
     },
@@ -167,6 +195,8 @@ export const seatPacerPayload = () => ({
 /**
  * history.json: 5-minute samples over the last `days`, c1 burning 1%/h from 20%
  * and c2 burning 0.5%/h; c2 reset two days ago (a drop the burn must ignore).
+ * The Fable window (`wf`) only appears in the last day, as it does once the
+ * recorder starts writing it: c1 burns 0.5%/h of it, c2 holds at 30%.
  */
 export const historyPayload = (days = 3) => {
   const interval = 300;
@@ -175,6 +205,9 @@ export const historyPayload = (days = 3) => {
   for (let t = start; t <= NOW - 5 * 60_000; t += interval * 1000) {
     const hours = (t - start) / HOUR;
     const c2Hours = t < NOW - 2 * DAY ? hours : (t - (NOW - 2 * DAY)) / HOUR;
+    const fableHours = (t - (NOW - DAY)) / HOUR;
+    const fable = (used: number, resetMs: number) =>
+      fableHours >= 0 ? { wf: { used, reset: sec(resetMs) } } : {};
     samples.push({
       t: sec(t),
       a: [
@@ -184,6 +217,7 @@ export const historyPayload = (days = 3) => {
           on: true,
           w: { used: Math.min(100, 20 + hours * 1), reset: sec(NOW + 2 * DAY) },
           f: { used: 10, reset: sec(t + 2 * HOUR) },
+          ...fable(48 + fableHours * 0.5, NOW + 2 * DAY),
           seen: sec(t),
           src: 'usage',
         },
@@ -196,6 +230,7 @@ export const historyPayload = (days = 3) => {
             reset: sec(t < NOW - 2 * DAY ? NOW - 2 * DAY : NOW + 5 * DAY),
           },
           f: null,
+          ...fable(30, NOW + 5 * DAY),
           seen: sec(t),
           src: 'headers',
         },

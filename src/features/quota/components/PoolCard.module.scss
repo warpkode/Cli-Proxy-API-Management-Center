@@ -13,6 +13,7 @@
 .head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 9px;
   min-width: 0;
 }
@@ -51,6 +52,58 @@
   color: var(--text-secondary);
 }
 
+/* Scope switch: which weekly limit the card pools, with what each has left. */
+.scope {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  padding: 3px;
+  border-radius: var(--radius-control, 11px);
+  background: var(--surface-well);
+  font-size: 14px;
+
+  button {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--dur-hover) var(--ease-out-strong),
+      color var(--dur-hover) var(--ease-out-strong);
+
+    &:hover {
+      color: var(--text-primary);
+    }
+
+    &[aria-pressed='true'] {
+      background: var(--surface-selected);
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--text-secondary);
+      outline-offset: 1px;
+    }
+  }
+}
+
+/* The figure stays quiet in both states so the name carries the selection. */
+.scopeValue {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
 .summary {
   display: flex;
   align-items: flex-end;
@@ -78,9 +131,17 @@
 }
 
 .heroOf,
+.heroScope,
 .plan {
   font-size: 15px;
   color: var(--text-secondary);
+}
+
+/* Names the limit when the card is not on the account-wide one. */
+.heroScope::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--text-tertiary);
 }
 
 .plan {
@@ -177,6 +238,17 @@
     padding: 18px 16px 14px;
   }
 
+  /* On its own row: an even, full-width switch reads as deliberate. */
+  .scope {
+    flex: 1 1 100%;
+    margin-left: 0;
+
+    button {
+      flex: 1 1 0;
+      justify-content: center;
+    }
+  }
+
   .stats {
     gap: 14px 24px;
   }
@@ -185,5 +257,11 @@
 @media (prefers-reduced-transparency: reduce), (forced-colors: active) {
   .masked {
     filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scope button {
+    transition: none;
   }
 }

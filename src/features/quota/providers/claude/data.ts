@@ -30,6 +30,7 @@ import {
   createStatusError,
   isClaudeFile,
   isDisabledAuthFile,
+  isFableModelName,
 } from '@/utils/quota';
 import { normalizeAuthIndex } from '@/utils/authIndex';
 import type { QuotaProviderData } from '../types';
@@ -52,10 +53,7 @@ const findFableUsageLimit = (payload: ClaudeUsagePayload) => {
 
   const candidates = payload.limits.filter((limit) => {
     const kind = (normalizeStringValue(limit?.kind) ?? '').trim().toLowerCase();
-    const modelName = (normalizeStringValue(limit?.scope?.model?.display_name) ?? '')
-      .trim()
-      .toLowerCase();
-    const isFable = modelName === 'fable' || modelName === 'fable 5';
+    const isFable = isFableModelName(normalizeStringValue(limit?.scope?.model?.display_name));
     return kind === 'weekly_scoped' && isFable && normalizeNumberValue(limit?.percent) !== null;
   });
 

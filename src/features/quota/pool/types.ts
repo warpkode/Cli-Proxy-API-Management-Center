@@ -12,6 +12,22 @@ export type PoolProvider = (typeof POOL_PROVIDERS)[number];
 export const isPoolProvider = (value: unknown): value is PoolProvider =>
   typeof value === 'string' && (POOL_PROVIDERS as readonly string[]).includes(value);
 
+/**
+ * Which weekly limit a pool is measured against: the account-wide one (`all`)
+ * or the weekly limit Anthropic scopes to Fable (`fable`).
+ */
+export const POOL_SCOPES = ['all', 'fable'] as const;
+export type PoolScope = (typeof POOL_SCOPES)[number];
+
+export const isPoolScope = (value: unknown): value is PoolScope =>
+  typeof value === 'string' && (POOL_SCOPES as readonly string[]).includes(value);
+
+const ALL_ONLY: readonly PoolScope[] = ['all'];
+
+/** Only Claude reports a model-scoped weekly limit next to the account-wide one. */
+export const poolScopesFor = (provider: PoolProvider): readonly PoolScope[] =>
+  provider === 'claude' ? POOL_SCOPES : ALL_ONLY;
+
 /** Where a reading came from, in preference order. */
 export type QuotaReadingSource = 'seat-pacer' | 'signals' | 'history';
 
@@ -31,6 +47,8 @@ export interface QuotaReading {
   observedAtMs: number | null;
   weekly: QuotaWindowReading | null;
   fiveHour: QuotaWindowReading | null;
+  /** Claude's Fable-scoped weekly window; other providers never report one. */
+  fable?: QuotaWindowReading | null;
   plan?: string;
 }
 
@@ -47,6 +65,8 @@ export interface ResolvedWindow {
 export interface ResolvedAccountQuota {
   weekly: ResolvedWindow | null;
   fiveHour: ResolvedWindow | null;
+  /** The Fable-scoped weekly window, from its own freshest reading. */
+  fable?: ResolvedWindow | null;
   /** Source and time of the weekly reading (or the 5-hour one when weekly is absent). */
   source: QuotaReadingSource | null;
   observedAtMs: number | null;
@@ -65,10 +85,24 @@ export interface HistoryAccountSample {
   on: boolean;
   weekly: HistoryWindow | null;
   fiveHour: HistoryWindow | null;
+  /** Recorded only once the hub's recorder writes the Fable window. */
+  fable?: HistoryWindow | null;
   seenMs: number | null;
   src?: string;
   plan?: string;
 }
+
+/** The window a scope measures on a resolved account. */
+export const scopedWindow = (
+  quota: ResolvedAccountQuota,
+  scope: PoolScope
+): ResolvedWindow | null => (scope === 'fable' ? quota.fable : quota.weekly) ?? null;
+
+/** The window a scope measures in one recorded sample. */
+export const scopedHistoryWindow = (
+  sample: HistoryAccountSample,
+  scope: PoolScope
+): HistoryWindow | null => (scope === 'fable' ? sample.fable : sample.weekly) ?? null;
 
 export interface HistorySample {
   t: number;

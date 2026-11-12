@@ -18,6 +18,7 @@ import { buildPoolView, niceCeiling } from '@/features/quota/pool/poolView';
 import { WEEK_MS } from '@/features/quota/pool/signals';
 import type { HistorySample, QuotaReading } from '@/features/quota/pool/types';
 import type { PoolAccount } from '@/features/quota/pool/accounts';
+import type { ResetGrant } from '@/services/api/quotaResets';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -552,5 +553,303 @@ describe('reset grants in the projection', () => {
     expect(result.activeAccountId).toBe('b');
     expect(result.nextAccountId).toBe('a');
     expect(result.emptyAt).toEqual({ a: null, b: NOW + 5 * HOUR, c: NOW });
+  });
+});
+
+describe('Fable scope', () => {
+  /** One sample carrying `[weekly used, Fable used]` per account; null leaves a window out. */
+  const both = (
+    t: number,
+    used: Record<string, [number | null, number | null]>
+  ): HistorySample => ({
+    t,
+    accounts: Object.entries(used).map(([id, [weekly, fable]]) => ({
+      id,
+      provider: 'claude',
+      on: true,
+      weekly: weekly === null ? null : { used: weekly, resetAtMs: null },
+      fiveHour: null,
+      fable: fable === null ? null : { used: fable, resetAtMs: null },
+      seenMs: t,
+    })),
+  });
+
+  test('the Fable window is resolved on its own, whichever source reports the weekly one', () => {
+    const pacer: QuotaReading = {
+      ...reading('seat-pacer', NOW - 10 * 60_000, 45),
+      fable: { used: 60, resetAtMs: NOW + DAY, periodMs: WEEK_MS },
+    };
+    // Fresher than the plugin snapshot, but these headers carry no Fable window.
+    const signals = reading('signals', NOW, 46);
+    expect(pickReading([pacer, signals], 'weekly')).toBe(signals);
+    expect(pickReading([pacer, signals], 'fable')).toBe(pacer);
+
+    const resolved = resolveAccountQuota([pacer, signals], NOW);
+    expect(resolved.weekly?.used).toBe(46);
+    expect(resolved.fable).toEqual({
+      used: 60,
+      resetAtMs: NOW + DAY,
+      periodMs: WEEK_MS,
+      rolled: false,
+    });
+    expect(resolveAccountQuota([signals], NOW).fable).toBeNull();
+    // A Fable window whose reset passed reads as fresh, like any other.
+    const passed: QuotaReading = {
+      ...reading('signals', NOW - 2 * DAY, 30),
+      fable: { used: 90, resetAtMs: NOW - HOUR, periodMs: WEEK_MS },
+    };
+    expect(resolveAccountQuota([passed], NOW).fable).toMatchObject({ used: 0, rolled: true });
+  });
+
+  test('burn follows the scope and needs samples that record it', () => {
+    const samples = [
+      both(NOW - 3 * HOUR, { a: [10, 2] }),
+      both(NOW - 2 * HOUR, { a: [20, 4] }),
+      both(NOW - HOUR, { a: [30, 6] }),
+      both(NOW, { a: [40, 8] }),
+    ];
+    const ids = new Set(['a']);
+    expect(computeBurnRate(buildBurnIndex(samples, ids), NOW, 3).ratePerHour).toBe(10);
+    expect(computeBurnRate(buildBurnIndex(samples, ids, 'fable'), NOW, 3).ratePerHour).toBe(2);
+    // Weekly-only samples (an older recorder) give the Fable scope nothing to measure.
+    const weeklyOnly = samples.map((item) => sample(item.t, { a: item.accounts[0].weekly!.used }));
+    expect(computeBurnRate(buildBurnIndex(weeklyOnly, ids, 'fable'), NOW, 3).ratePerHour).toBe(0);
+  });
+
+  test('burn coverage starts where the scope was first recorded', () => {
+    // Three hours of weekly samples; Fable only in the last hour, burning 2%/h.
+    const samples = [
+      both(NOW - 3 * HOUR, { a: [10, null] }),
+      both(NOW - 2 * HOUR, { a: [20, null] }),
+      both(NOW - HOUR, { a: [30, 6] }),
+      both(NOW - HOUR / 2, { a: [35, 7] }),
+      both(NOW, { a: [40, 8] }),
+    ];
+    const index = buildBurnIndex(samples, new Set(['a']), 'fable');
+    expect(index.recordedFromMs).toBe(NOW - HOUR);
+    // One recorded hour is not half of a 3-hour window: no rate, rather than a
+    // measured-looking 0 or one diluted over hours that recorded nothing.
+    expect(computeBurnRate(index, NOW, 3)).toEqual({
+      ratePerHour: 0,
+      coveredHours: 1,
+      sufficient: false,
+    });
+    expect(computeBurnRate(index, NOW, 1)).toEqual({
+      ratePerHour: 2,
+      coveredHours: 1,
+      sufficient: true,
+    });
+    // The drain chart draws nothing before there is recorded coverage.
+    expect(computeBurnSeries(index, 1, NOW - 3 * HOUR, NOW)).toEqual([
+      { t: NOW - HOUR / 2, value: 2 },
+      { t: NOW, value: 2 },
+    ]);
+    // A scope nobody recorded has no burn at all.
+    const none = buildBurnIndex(samples.slice(0, 2), new Set(['a']), 'fable');
+    expect(none.recordedFromMs).toBeNull();
+    expect(computeBurnRate(none, NOW - 2 * HOUR, 1).sufficient).toBe(false);
+    expect(computeBurnSeries(none, 1, NOW - 3 * HOUR, NOW)).toEqual([]);
+    // The weekly scope of the same samples is measured over all three hours.
+    expect(computeBurnRate(buildBurnIndex(samples, new Set(['a'])), NOW, 3).ratePerHour).toBe(10);
+  });
+
+  test('the recorded line starts at the first sample that records the scope', () => {
+    const samples = [
+      both(NOW - 4 * HOUR, { a: [10, null] }),
+      both(NOW - 3 * HOUR, { a: [12, null] }),
+      both(NOW - 2 * HOUR, { a: [14, 30] }),
+      both(NOW - HOUR, { a: [16, 35] }),
+    ];
+    const accounts = [
+      { id: 'a', fallbackRemaining: 60 },
+      { id: 'never-recorded', fallbackRemaining: 80 },
+    ];
+    const fable = buildRecordedSeries(samples, accounts, NOW - 5 * HOUR, NOW, 'fable');
+    // No flat back-filled line across the hours before Fable was recorded.
+    expect(fable.pool).toEqual([
+      { t: NOW - 2 * HOUR, value: 70 + 80 },
+      { t: NOW - HOUR, value: 65 + 80 },
+    ]);
+    // The weekly scope still covers every sample.
+    const weekly = buildRecordedSeries(samples, accounts, NOW - 5 * HOUR, NOW);
+    expect(weekly.pool.map((point) => point.value)).toEqual([170, 168, 166, 164]);
+    // Nothing recorded for the scope: no line at all.
+    expect(
+      buildRecordedSeries(samples.slice(0, 2), accounts, NOW - 5 * HOUR, NOW, 'fable').pool
+    ).toEqual([]);
+  });
+
+  test('a blocked account counts toward the total but serves only once released', () => {
+    const result = simulatePool(
+      [
+        {
+          id: 'held',
+          used: 20,
+          resetAtMs: NOW + 2 * HOUR,
+          periodMs: WEEK_MS,
+          blockedUntilMs: NOW + 2 * HOUR,
+        },
+        { id: 'free', used: 80, resetAtMs: NOW + DAY, periodMs: WEEK_MS },
+      ],
+      { startMs: NOW, endMs: NOW + 4 * HOUR, burnPerHour: 20 }
+    );
+    // 80 held + 20 free.
+    expect(result.pool[0].value).toBe(100);
+    // "held" resets soonest but cannot serve, so "free" is drained and nobody is next.
+    expect(result.activeAccountId).toBe('free');
+    expect(result.nextAccountId).toBeNull();
+    expect(result.firstEmpty).toEqual({ accountId: 'free', atMs: NOW + HOUR });
+    // Nothing can serve from then on, although "held" still shows 80.
+    expect(result.poolEmptyAtMs).toBe(NOW + HOUR);
+    expect(result.pool.find((point) => point.t === NOW + HOUR)?.value).toBeCloseTo(80, 9);
+    expect(result.emptyAt.held).toBeNull();
+    // At +2 h it resets and is released, then serves 20%/h for the last two hours.
+    expect(result.stepUps).toEqual([
+      { t: NOW + 2 * HOUR, amount: 20, accountIds: ['held'], kind: 'reset' },
+    ]);
+    const held = result.perAccount.held;
+    expect(held[held.length - 1].value).toBeCloseTo(60, 9);
+  });
+
+  test('a block lifts at its own instant, has no effect once passed, and may never lift', () => {
+    const midStep = simulatePool(
+      [
+        {
+          id: 'a',
+          used: 0,
+          resetAtMs: NOW + DAY,
+          periodMs: WEEK_MS,
+          blockedUntilMs: NOW + 20 * 60_000,
+        },
+      ],
+      { startMs: NOW, endMs: NOW + HOUR, burnPerHour: 60 }
+    );
+    // Idle for 20 minutes, then 1% a minute.
+    expect(midStep.poolEmptyAtMs).toBe(NOW);
+    expect(midStep.activeAccountId).toBeNull();
+    expect(midStep.pool.map((point) => Math.round(point.value))).toEqual([100, 100, 90, 75, 60]);
+
+    const passed = simulatePool(
+      [
+        {
+          id: 'a',
+          used: 50,
+          resetAtMs: NOW + DAY,
+          periodMs: WEEK_MS,
+          blockedUntilMs: NOW - HOUR,
+        },
+      ],
+      { startMs: NOW, endMs: NOW + HOUR, burnPerHour: 10 }
+    );
+    expect(passed.activeAccountId).toBe('a');
+    expect(passed.poolEmptyAtMs).toBeNull();
+
+    const never = simulatePool(
+      [
+        {
+          id: 'a',
+          used: 50,
+          resetAtMs: null,
+          periodMs: WEEK_MS,
+          blockedUntilMs: Number.POSITIVE_INFINITY,
+        },
+      ],
+      { startMs: NOW, endMs: NOW + HOUR, burnPerHour: 10 }
+    );
+    expect(never.poolEmptyAtMs).toBe(NOW);
+    expect(never.pool[never.pool.length - 1].value).toBe(50);
+  });
+
+  test('the pool view measures the Fable window and leaves reset grants out of it', () => {
+    const account = (
+      key: string,
+      weeklyUsed: number,
+      fableUsed: number | null,
+      resetAtMs: number = NOW + 2 * DAY
+    ): PoolAccount => ({
+      key,
+      authIndex: key,
+      provider: 'claude',
+      file: { name: `${key}.json`, provider: 'claude', authIndex: key },
+      quota: {
+        weekly: { used: weeklyUsed, resetAtMs, periodMs: WEEK_MS, rolled: false },
+        fiveHour: null,
+        fable:
+          fableUsed === null
+            ? null
+            : { used: fableUsed, resetAtMs, periodMs: WEEK_MS, rolled: false },
+        source: 'signals',
+        observedAtMs: NOW,
+      },
+      status:
+        weeklyUsed >= 100
+          ? { kind: 'weekly_exhausted', untilMs: resetAtMs }
+          : { kind: 'available', untilMs: null },
+    });
+    // "b" is at its weekly limit with Fable quota left; "c" reports no Fable window.
+    const accounts = [
+      account('a', 40, 10),
+      account('b', 100, 30, NOW + DAY),
+      account('c', 20, null),
+    ];
+    const grant: ResetGrant = {
+      id: 'grant_b',
+      accountId: 'b',
+      provider: 'claude',
+      label: '',
+      clears: ['seven_day'],
+      startsAtMs: null,
+      expiresAtMs: NOW + 6 * HOUR,
+      left: 1,
+      total: 1,
+      usable: true,
+      requiresLimit: true,
+      policy: 'limit',
+      policySet: true,
+      nextActionAtMs: null,
+      state: 'pending',
+      last: null,
+    };
+    const history = {
+      intervalMs: HOUR,
+      updatedMs: NOW,
+      samples: [0, 1, 2, 3].map((i) =>
+        both(NOW - (3 - i) * HOUR, { a: [31 + i * 3, 4 + i * 2], b: [100, 30], c: [20, null] })
+      ),
+    };
+    const base = {
+      accounts,
+      history,
+      nowMs: NOW,
+      range: poolRange(NOW),
+      burnWindowHours: 3,
+      futureUsage: 'same' as const,
+      grants: [grant],
+    };
+
+    const fable = buildPoolView({ ...base, scope: 'fable' });
+    expect(fable.scope).toBe('fable');
+    expect(fable.members.map((member) => member.key)).toEqual(['a', 'b']);
+    expect(fable.missing.map((member) => member.key)).toEqual(['c']);
+    expect(fable.blocked.map((member) => member.key)).toEqual(['b']);
+    expect(fable.summary).toMatchObject({ accountCount: 2, capacity: 200, remaining: 160 });
+    // 2%/h of the Fable limit, not the 3%/h the weekly window burns.
+    expect(fable.hasHistory).toBe(true);
+    expect(fable.burn.ratePerHour).toBe(2);
+    // "b" resets sooner but is blocked: "a" serves, and nobody else can.
+    expect(fable.plan.activeId).toBe('a');
+    expect(fable.plan.nextId).toBeNull();
+    // No grant is known to restore the Fable window.
+    expect(fable.grants.pending).toEqual([]);
+    expect(fable.grants.outcomes).toEqual({});
+    expect(fable.remaining.projectedStepUps.every((event) => event.kind === 'reset')).toBe(true);
+
+    const all = buildPoolView(base);
+    expect(all.scope).toBe('all');
+    expect(all.members.map((member) => member.key)).toEqual(['a', 'b', 'c']);
+    expect(all.blocked).toEqual([]);
+    expect(all.burn.ratePerHour).toBe(3);
+    expect(all.grants.pending.map((item) => item.id)).toEqual(['grant_b']);
+    expect(all.grants.outcomes['b:grant_b']).toMatchObject({ kind: 'spent', atMs: NOW });
   });
 });

@@ -5,7 +5,7 @@
 
 import { grantKey, type ResetGrant } from '@/services/api/quotaResets';
 import type { PoolAccount } from './accounts';
-import { toSimulationAccounts } from './accounts';
+import { fableBlockedUntil, toSimulationAccounts } from './accounts';
 import {
   buildBurnIndex,
   buildRecordedSeries,
@@ -23,7 +23,14 @@ import {
   type SimulationGrant,
   type TimeRange,
 } from './poolModel';
-import type { QuotaHistory, SeriesPoint, StepUpEvent } from './types';
+import {
+  scopedHistoryWindow,
+  scopedWindow,
+  type PoolScope,
+  type QuotaHistory,
+  type SeriesPoint,
+  type StepUpEvent,
+} from './types';
 
 export interface AccountSeries {
   key: string;
@@ -32,10 +39,17 @@ export interface AccountSeries {
 }
 
 export interface PoolView {
-  /** Accounts with a known weekly window: the pool's members. */
+  /** The limit every number below is measured against. */
+  scope: PoolScope;
+  /** Accounts with a known window for the scope: the pool's members. */
   members: PoolAccount[];
-  /** Accounts of this provider without weekly data; excluded from capacity. */
+  /** Accounts of this provider without that window; excluded from capacity. */
   missing: PoolAccount[];
+  /**
+   * Fable scope: members at their account-wide weekly limit. Their Fable quota is
+   * counted but cannot be used until that limit resets. Empty in the `all` scope.
+   */
+  blocked: PoolAccount[];
   summary: PoolSummary;
   burn: BurnRate;
   /** burn × future-usage factor: the demand the projection assumes. */
@@ -75,6 +89,8 @@ export interface PoolViewInput {
   range: TimeRange;
   burnWindowHours: number;
   futureUsage: FutureUsageMode;
+  /** Which weekly limit to pool; defaults to the account-wide one. */
+  scope?: PoolScope;
   /** Drawing budget per series; ~one point per horizontal pixel. */
   maxPoints?: number;
   /** Grants and credits from the hub's reset scheduler (any provider; filtered here). */
@@ -138,20 +154,27 @@ const within = (points: readonly SeriesPoint[], fromMs: number, toMs: number) =>
 export function buildPoolView(input: PoolViewInput): PoolView {
   const { accounts, history, nowMs, range, burnWindowHours, futureUsage } = input;
   const maxPoints = input.maxPoints ?? 720;
-  const members = accounts.filter((account) => account.quota.weekly !== null);
-  const missing = accounts.filter((account) => account.quota.weekly === null);
-  const simAccounts = toSimulationAccounts(members);
+  const scope = input.scope ?? 'all';
+  const members = accounts.filter((account) => scopedWindow(account.quota, scope) !== null);
+  const missing = accounts.filter((account) => scopedWindow(account.quota, scope) === null);
+  const blocked =
+    scope === 'fable' ? members.filter((account) => fableBlockedUntil(account) !== null) : [];
+  const simAccounts = toSimulationAccounts(members, scope);
   const ids = new Set(simAccounts.map((account) => account.id));
   const samples = history?.samples ?? [];
   const hasHistory = samples.some((sample) =>
-    sample.accounts.some((account) => ids.has(account.id) && account.weekly)
+    sample.accounts.some(
+      (account) => ids.has(account.id) && scopedHistoryWindow(account, scope) !== null
+    )
   );
 
-  const burnIndex = buildBurnIndex(samples, ids);
+  const burnIndex = buildBurnIndex(samples, ids, scope);
   const burn = computeBurnRate(burnIndex, nowMs, burnWindowHours);
   const projectedBurnPerHour = burn.ratePerHour * FUTURE_USAGE_FACTORS[futureUsage];
 
-  const pending = pendingGrants(input.grants ?? [], ids, nowMs);
+  // Grants name the windows they clear, and none names the Fable-scoped one, so
+  // the Fable projection counts on weekly resets only.
+  const pending = scope === 'all' ? pendingGrants(input.grants ?? [], ids, nowMs) : [];
   const leadMs = input.grantLeadMs ?? DEFAULT_GRANT_LEAD_MS;
   // The pool tracks weekly quota: a Claude grant that only clears the 5-hour window
   // restores none of it. Codex credits reset every window.
@@ -198,7 +221,8 @@ export function buildPoolView(input: PoolViewInput): PoolView {
             fallbackRemaining: 100 - account.used,
           })),
           range.startMs,
-          recordedTo
+          recordedTo,
+          scope
         )
       : { pool: [], perAccount: {} as Record<string, SeriesPoint[]>, stepUps: [] };
   const nowVisible = nowMs >= range.startMs && nowMs <= range.endMs;
@@ -243,8 +267,10 @@ export function buildPoolView(input: PoolViewInput): PoolView {
       : [];
 
   return {
+    scope,
     members,
     missing,
+    blocked,
     summary,
     burn,
     projectedBurnPerHour,

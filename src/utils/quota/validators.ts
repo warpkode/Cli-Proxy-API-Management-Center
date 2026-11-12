@@ -37,6 +37,16 @@ export function isXaiFile(file: AuthFileItem): boolean {
   return resolveAuthProvider(file) === 'xai';
 }
 
+/**
+ * Anthropic labels the Fable-scoped weekly limit by model display name, which
+ * has appeared both with and without the generation number.
+ */
+export function isFableModelName(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const name = value.trim().toLowerCase();
+  return name === 'fable' || name === 'fable 5';
+}
+
 /** Providers rendered by a dedicated built-in quota card. */
 export const BUILT_IN_QUOTA_PROVIDERS: ReadonlySet<string> = new Set([
   'antigravity',

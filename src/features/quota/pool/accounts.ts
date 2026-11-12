@@ -9,11 +9,13 @@ import { normalizeAuthIndex } from '@/utils/authIndex';
 import { parseTimestampMs } from '@/utils/timestamp';
 import { resolveAccountQuota, type SimulationAccount } from './poolModel';
 import { readCredentialSignals, readHistoryAccount, readSeatPacerAccount } from './signals';
-import type {
-  HistoryAccountSample,
-  QuotaHistory,
-  QuotaReading,
-  ResolvedAccountQuota,
+import {
+  scopedWindow,
+  type HistoryAccountSample,
+  type PoolScope,
+  type QuotaHistory,
+  type QuotaReading,
+  type ResolvedAccountQuota,
 } from './types';
 
 export type AccountStatusKind =
@@ -49,7 +51,8 @@ export function latestHistoryById(
   for (let index = history.samples.length - 1; index >= 0; index -= 1) {
     const { t, accounts } = history.samples[index];
     for (const account of accounts) {
-      if (latest.has(account.id) || (!account.weekly && !account.fiveHour)) continue;
+      if (latest.has(account.id)) continue;
+      if (!account.weekly && !account.fiveHour && !account.fable) continue;
       latest.set(account.id, { sample: account, t });
     }
   }
@@ -129,21 +132,48 @@ export function buildPoolAccounts(sources: PoolSources, nowMs: number): PoolAcco
 export const hasQuotaData = (account: PoolAccount) =>
   account.quota.weekly !== null || account.quota.fiveHour !== null;
 
-/** Accounts that take part in a pool: a known weekly window and a join key. */
-export function toSimulationAccounts(accounts: readonly PoolAccount[]): SimulationAccount[] {
-  return accounts.flatMap((account) =>
-    account.quota.weekly
-      ? [
-          {
-            id: account.key,
-            used: account.quota.weekly.used,
-            resetAtMs: account.quota.weekly.resetAtMs,
-            periodMs: account.quota.weekly.periodMs,
-          },
-        ]
-      : []
-  );
+/**
+ * Fable requests also count against the account-wide weekly limit, so an account
+ * that has reached it cannot serve Fable however much of the Fable limit is left.
+ * Returns when that block ends (`Infinity` when the reset is unknown), else null.
+ */
+export function fableBlockedUntil(account: PoolAccount): number | null {
+  if (account.status.kind !== 'weekly_exhausted') return null;
+  return account.status.untilMs ?? Number.POSITIVE_INFINITY;
 }
+
+/** Accounts that take part in a pool: a known window for the scope and a join key. */
+export function toSimulationAccounts(
+  accounts: readonly PoolAccount[],
+  scope: PoolScope = 'all'
+): SimulationAccount[] {
+  return accounts.flatMap((account) => {
+    const window = scopedWindow(account.quota, scope);
+    if (!window) return [];
+    const blockedUntilMs = scope === 'fable' ? fableBlockedUntil(account) : null;
+    return [
+      {
+        id: account.key,
+        used: window.used,
+        resetAtMs: window.resetAtMs,
+        periodMs: window.periodMs,
+        ...(blockedUntilMs !== null ? { blockedUntilMs } : {}),
+      },
+    ];
+  });
+}
+
+/** What a scope has left across the accounts that report its window. */
+export function poolRemaining(accounts: readonly PoolAccount[], scope: PoolScope): number {
+  return accounts.reduce((sum, account) => {
+    const window = scopedWindow(account.quota, scope);
+    return window ? sum + Math.max(0, 100 - window.used) : sum;
+  }, 0);
+}
+
+/** True when any account reports the scope's window, so the scope has a pool to show. */
+export const hasScopeData = (accounts: readonly PoolAccount[], scope: PoolScope) =>
+  accounts.some((account) => scopedWindow(account.quota, scope) !== null);
 
 /* ------------------------------------------------------------------------ */
 /* Display identity                                                         */

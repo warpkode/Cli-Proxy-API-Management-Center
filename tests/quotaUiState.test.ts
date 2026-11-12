@@ -68,6 +68,17 @@ describe('quota ui state', () => {
     expect(readQuotaUiState()).toEqual({ tab: undefined, sortMode: undefined });
   });
 
+  test('remembers which weekly limit the Claude pool shows', () => {
+    writeQuotaUiState({ tab: 'claude' });
+    writeQuotaUiState({ poolScope: 'fable' });
+    expect(readQuotaUiState()).toEqual({ tab: 'claude', poolScope: 'fable' });
+    writeQuotaUiState({ poolScope: 'all' });
+    expect(readQuotaUiState()?.poolScope).toBe('all');
+
+    storage.setItem(KEY, JSON.stringify({ poolScope: 'opus' }));
+    expect(readQuotaUiState()?.poolScope).toBeUndefined();
+  });
+
   test('survives absent, malformed, and non-object payloads', () => {
     expect(readQuotaUiState()).toBeNull();
 
