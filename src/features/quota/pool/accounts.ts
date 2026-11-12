@@ -10,7 +10,10 @@ import { parseTimestampMs } from '@/utils/timestamp';
 import { resolveAccountQuota, type SimulationAccount } from './poolModel';
 import { readCredentialSignals, readHistoryAccount, readSeatPacerAccount } from './signals';
 import {
+  FABLE_WEEKLY_SHARE,
+  scopeCapacity,
   scopedWindow,
+  scopeLeft,
   type HistoryAccountSample,
   type PoolScope,
   type QuotaHistory,
@@ -132,14 +135,48 @@ export function buildPoolAccounts(sources: PoolSources, nowMs: number): PoolAcco
 export const hasQuotaData = (account: PoolAccount) =>
   account.quota.weekly !== null || account.quota.fiveHour !== null;
 
+/** Weekly quota left: 0 while the account is at its weekly limit, null when unknown. */
+export function weeklyLeft(account: PoolAccount): number | null {
+  const weekly = account.quota.weekly;
+  if (!weekly) return null;
+  if (account.status.kind === 'weekly_exhausted') return 0;
+  return Math.max(0, 100 - weekly.used);
+}
+
 /**
- * Fable requests also count against the account-wide weekly limit, so an account
- * that has reached it cannot serve Fable however much of the Fable limit is left.
- * Returns when that block ends (`Infinity` when the reset is unknown), else null.
+ * The Fable allowance an account has not used, in percent of its weekly limit
+ * (at most FABLE_WEEKLY_SHARE of it); null without a Fable window.
  */
-export function fableBlockedUntil(account: PoolAccount): number | null {
-  if (account.status.kind !== 'weekly_exhausted') return null;
-  return account.status.untilMs ?? Number.POSITIVE_INFINITY;
+export function fableAllowanceLeft(account: PoolAccount): number | null {
+  const fable = account.quota.fable;
+  if (!fable) return null;
+  if (fable.status === STATUS_REJECTED) return 0;
+  return Math.max(0, scopeLeft('fable', fable.used, null));
+}
+
+/**
+ * What a scope has left on an account, in percent of its weekly limit; null
+ * when the account does not report the scope's window. Fable use counts against
+ * the weekly limit too, so Fable has the smaller of its allowance and the weekly
+ * quota left: an account at its weekly limit has none, whatever its Fable meter says.
+ */
+export function accountRemaining(account: PoolAccount, scope: PoolScope): number | null {
+  if (scope === 'all') {
+    const weekly = account.quota.weekly;
+    return weekly ? Math.max(0, 100 - weekly.used) : null;
+  }
+  const allowance = fableAllowanceLeft(account);
+  if (allowance === null) return null;
+  const weekly = weeklyLeft(account);
+  return weekly === null ? allowance : Math.min(allowance, weekly);
+}
+
+/** Weekly usage an account has spent on Fable: what a Fable reset gives back. */
+function fableSpend(account: PoolAccount): number {
+  const fable = account.quota.fable;
+  if (!fable) return 0;
+  const spend = FABLE_WEEKLY_SHARE * fable.used;
+  return account.quota.weekly ? Math.min(spend, account.quota.weekly.used) : spend;
 }
 
 /** Accounts that take part in a pool: a known window for the scope and a join key. */
@@ -150,14 +187,19 @@ export function toSimulationAccounts(
   return accounts.flatMap((account) => {
     const window = scopedWindow(account.quota, scope);
     if (!window) return [];
-    const blockedUntilMs = scope === 'fable' ? fableBlockedUntil(account) : null;
+    const base = { id: account.key, resetAtMs: window.resetAtMs, periodMs: window.periodMs };
+    if (scope === 'all') {
+      const spend = fableSpend(account);
+      return [{ ...base, used: window.used, ...(spend > 0 ? { fableSpend: spend } : {}) }];
+    }
+    const capacity = scopeCapacity(scope);
+    const ceiling = weeklyLeft(account);
     return [
       {
-        id: account.key,
-        used: window.used,
-        resetAtMs: window.resetAtMs,
-        periodMs: window.periodMs,
-        ...(blockedUntilMs !== null ? { blockedUntilMs } : {}),
+        ...base,
+        used: capacity - (fableAllowanceLeft(account) ?? 0),
+        capacity,
+        ...(ceiling !== null ? { ceiling } : {}),
       },
     ];
   });
@@ -165,10 +207,7 @@ export function toSimulationAccounts(
 
 /** What a scope has left across the accounts that report its window. */
 export function poolRemaining(accounts: readonly PoolAccount[], scope: PoolScope): number {
-  return accounts.reduce((sum, account) => {
-    const window = scopedWindow(account.quota, scope);
-    return window ? sum + Math.max(0, 100 - window.used) : sum;
-  }, 0);
+  return accounts.reduce((sum, account) => sum + (accountRemaining(account, scope) ?? 0), 0);
 }
 
 /** True when any account reports the scope's window, so the scope has a pool to show. */

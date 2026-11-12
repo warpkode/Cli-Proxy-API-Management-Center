@@ -7,13 +7,15 @@ import { normalizeSeatPacerStatus, seatPacerApi } from '@/services/api/seatPacer
 import { classifyQuotaFiles } from '@/features/quota/logic';
 import {
   accountLabel,
+  accountRemaining,
   buildPoolAccounts,
-  fableBlockedUntil,
+  fableAllowanceLeft,
   hasScopeData,
   maskEmail,
   poolRemaining,
   resolveAccountStatus,
   toSimulationAccounts,
+  weeklyLeft,
 } from '@/features/quota/pool/accounts';
 import {
   fetchQuotaHistory,
@@ -193,7 +195,7 @@ describe('seat-pacer and history payloads', () => {
     // The Fable window is optional: absent until the recorder writes it.
     const first = history!.samples[0].accounts;
     expect(first.find((account) => account.id === 'c1')?.fable).toEqual({
-      used: 48,
+      used: 36,
       resetAtMs: sec(NOW + 2 * DAY),
     });
     expect(first.find((account) => account.id === 'x1')?.fable).toBeNull();
@@ -204,7 +206,7 @@ describe('seat-pacer and history payloads', () => {
         first.find((account) => account.id === 'c1')!,
         NOW - DAY
       )?.fable
-    ).toEqual({ used: 48, resetAtMs: sec(NOW + 2 * DAY), periodMs: WEEK_MS });
+    ).toEqual({ used: 36, resetAtMs: sec(NOW + 2 * DAY), periodMs: WEEK_MS });
     expect(normalizeQuotaHistory({ ...payload, version: 2 })).toBeNull();
     expect(normalizeQuotaHistory({ samples: [{ t: 1, a: [{ p: 'claude' }] }] })?.samples).toEqual([
       { t: 1000, accounts: [] },
@@ -270,32 +272,101 @@ describe('pool accounts', () => {
     // c1: only the seat-pacer names a Fable window.
     expect(byKey.c1.quota.fable).toMatchObject({ used: 60, resetAtMs: NOW + 2 * DAY });
     // c2: the cached headers beat the recorded sample.
-    expect(byKey.c2.quota.fable).toMatchObject({ used: 30, resetAtMs: sec(NOW + 5 * DAY) });
-    // c3: weekly comes from the fresher headers, and so does Fable; the account
-    // is at its weekly limit with Fable quota left.
+    expect(byKey.c2.quota.fable).toMatchObject({ used: 10, resetAtMs: sec(NOW + 5 * DAY) });
+    // c3: weekly comes from the fresher headers, and so does Fable.
     expect(byKey.c3.quota.fable?.used).toBe(40);
-    expect(byKey.c3.status.kind).toBe('weekly_exhausted');
-    expect(fableBlockedUntil(byKey.c3)).toBe(sec(NOW + 20 * HOUR));
-    expect(fableBlockedUntil(byKey.c1)).toBeNull();
     // c4 and Codex report none.
     expect(byKey.c4.quota.fable).toBeNull();
     expect(byKey.x1.quota.fable).toBeNull();
-
     const claude = accounts.filter((account) => account.provider === 'claude');
     expect(hasScopeData(claude, 'fable')).toBe(true);
     expect(hasScopeData([byKey.c4, byKey.x1], 'fable')).toBe(false);
-    // 40 + 70 + 60 left of the three that report it; all four report weekly.
-    expect(poolRemaining(claude, 'fable')).toBe(170);
+  });
+
+  test('Fable is half the weekly limit and never more than the weekly quota left', () => {
+    const accounts = buildPoolAccounts(sources(), NOW);
+    const byKey = Object.fromEntries(accounts.map((account) => [account.key, account]));
+    // c1: 40% of the Fable meter left is 20% of the weekly limit; weekly has 55% left.
+    expect(fableAllowanceLeft(byKey.c1)).toBe(20);
+    expect(weeklyLeft(byKey.c1)).toBe(55);
+    expect(accountRemaining(byKey.c1, 'fable')).toBe(20);
+    // c2: 90% of the Fable meter is 45%; weekly has 90% left.
+    expect(accountRemaining(byKey.c2, 'fable')).toBe(45);
+    // c3: 30% of Fable allowance is left, but the weekly limit is reached: none usable.
+    expect(byKey.c3.status.kind).toBe('weekly_exhausted');
+    expect(fableAllowanceLeft(byKey.c3)).toBe(30);
+    expect(weeklyLeft(byKey.c3)).toBe(0);
+    expect(accountRemaining(byKey.c3, 'fable')).toBe(0);
+    // c4 reports no Fable window; the all-models figure is unaffected.
+    expect(accountRemaining(byKey.c4, 'fable')).toBeNull();
+    expect(accountRemaining(byKey.c4, 'all')).toBe(100);
+    expect(accountRemaining(byKey.c3, 'all')).toBe(0);
+
+    const claude = accounts.filter((account) => account.provider === 'claude');
     expect(poolRemaining(claude, 'all')).toBe(245);
-    // Only the Fable scope marks the weekly-limited account as blocked.
-    expect(toSimulationAccounts(claude, 'fable').map((account) => account.blockedUntilMs)).toEqual([
-      undefined,
-      undefined,
-      sec(NOW + 20 * HOUR),
+    expect(poolRemaining(claude, 'fable')).toBe(65);
+    // On every account, and so in total, Fable is at most what the weekly limit has left.
+    for (const account of claude) {
+      const fable = accountRemaining(account, 'fable');
+      if (fable !== null) {
+        expect(fable).toBeLessThanOrEqual(accountRemaining(account, 'all') as number);
+      }
+    }
+
+    // Weekly quota caps Fable before it runs out: 4% of weekly left beats 29% of allowance.
+    const nearLimit = {
+      ...byKey.c1,
+      quota: {
+        ...byKey.c1.quota,
+        weekly: { ...byKey.c1.quota.weekly!, used: 96 },
+        fable: { ...byKey.c1.quota.fable!, used: 42 },
+      },
+    };
+    expect(fableAllowanceLeft(nearLimit)).toBe(29);
+    expect(accountRemaining(nearLimit, 'fable')).toBe(4);
+    // A rejected Fable window has nothing left whatever its percentage says.
+    const rejected = {
+      ...byKey.c1,
+      quota: { ...byKey.c1.quota, fable: { ...byKey.c1.quota.fable!, status: 'rejected' } },
+    };
+    expect(accountRemaining(rejected, 'fable')).toBe(0);
+    // Fable known, weekly unknown: the allowance is all there is to go on.
+    const noWeekly = { ...byKey.c2, quota: { ...byKey.c2.quota, weekly: null } };
+    expect(weeklyLeft(noWeekly)).toBeNull();
+    expect(accountRemaining(noWeekly, 'fable')).toBe(45);
+  });
+
+  test('simulation accounts carry the Fable allowance with its weekly ceiling', () => {
+    const claude = buildPoolAccounts(sources(), NOW).filter(
+      (account) => account.provider === 'claude'
+    );
+    expect(toSimulationAccounts(claude, 'fable')).toEqual([
+      // used and capacity are in percent of the weekly limit: 60% of the meter is 30 of 50.
+      { id: 'c1', resetAtMs: NOW + 2 * DAY, periodMs: WEEK_MS, used: 30, capacity: 50, ceiling: 55 },
+      {
+        id: 'c2',
+        resetAtMs: sec(NOW + 5 * DAY),
+        periodMs: WEEK_MS,
+        used: 5,
+        capacity: 50,
+        ceiling: 90,
+      },
+      {
+        id: 'c3',
+        resetAtMs: sec(NOW + 20 * HOUR),
+        periodMs: WEEK_MS,
+        used: 20,
+        capacity: 50,
+        ceiling: 0,
+      },
     ]);
-    expect(
-      toSimulationAccounts(claude).every((account) => account.blockedUntilMs === undefined)
-    ).toBe(true);
+    // The all-models pool keeps its shape and notes what a Fable reset would give back.
+    expect(toSimulationAccounts(claude)).toEqual([
+      { id: 'c1', resetAtMs: NOW + 2 * DAY, periodMs: WEEK_MS, used: 45, fableSpend: 30 },
+      { id: 'c2', resetAtMs: sec(NOW + 5 * DAY), periodMs: WEEK_MS, used: 10, fableSpend: 5 },
+      { id: 'c3', resetAtMs: sec(NOW + 20 * HOUR), periodMs: WEEK_MS, used: 100, fableSpend: 20 },
+      { id: 'c4', resetAtMs: sec(NOW - 2 * DAY) + WEEK_MS, periodMs: WEEK_MS, used: 0 },
+    ]);
   });
 
   test('a recorded Fable window stands in when no live source reports one', () => {
@@ -306,7 +377,7 @@ describe('pool accounts', () => {
         : entry
     );
     const c2 = buildPoolAccounts({ ...base, files }, NOW).find((account) => account.key === 'c2');
-    expect(c2?.quota.fable).toMatchObject({ used: 30, resetAtMs: sec(NOW + 5 * DAY) });
+    expect(c2?.quota.fable).toMatchObject({ used: 10, resetAtMs: sec(NOW + 5 * DAY) });
   });
 
   test('history is used when no live source reports an account', () => {

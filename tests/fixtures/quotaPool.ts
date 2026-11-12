@@ -11,7 +11,7 @@ export const HOUR = 3_600_000;
 export const DAY = 24 * HOUR;
 const sec = (ms: number) => Math.floor(ms / 1000);
 
-/** `usedFable` adds the Fable-scoped weekly window (`7d_oi`), which resets with the weekly one. */
+/** `usedFable` adds the Fable window (`7d_oi`): a meter over half the weekly limit, reset with it. */
 export const claudeSignals = (
   used7d: number,
   reset7dMs: number,
@@ -74,7 +74,7 @@ export const credentialsPayload = (): AuthFilesResponse => ({
       cooldowns: [],
       quota: {
         observed_at: observed(NOW - 5 * HOUR),
-        signals: claudeSignals(0.1, NOW + 5 * DAY, 0.2, 0.3),
+        signals: claudeSignals(0.1, NOW + 5 * DAY, 0.2, 0.1),
       },
     },
     {
@@ -196,7 +196,8 @@ export const seatPacerPayload = () => ({
  * history.json: 5-minute samples over the last `days`, c1 burning 1%/h from 20%
  * and c2 burning 0.5%/h; c2 reset two days ago (a drop the burn must ignore).
  * The Fable window (`wf`) only appears in the last day, as it does once the
- * recorder starts writing it: c1 burns 0.5%/h of it, c2 holds at 30%.
+ * recorder starts writing it: c1's Fable meter climbs 1 point an hour, c2 holds at 10%.
+ * As upstream guarantees, half the Fable meter never exceeds the weekly one.
  */
 export const historyPayload = (days = 3) => {
   const interval = 300;
@@ -217,7 +218,7 @@ export const historyPayload = (days = 3) => {
           on: true,
           w: { used: Math.min(100, 20 + hours * 1), reset: sec(NOW + 2 * DAY) },
           f: { used: 10, reset: sec(t + 2 * HOUR) },
-          ...fable(48 + fableHours * 0.5, NOW + 2 * DAY),
+          ...fable(36 + fableHours, NOW + 2 * DAY),
           seen: sec(t),
           src: 'usage',
         },
@@ -230,7 +231,7 @@ export const historyPayload = (days = 3) => {
             reset: sec(t < NOW - 2 * DAY ? NOW - 2 * DAY : NOW + 5 * DAY),
           },
           f: null,
-          ...fable(30, NOW + 5 * DAY),
+          ...fable(10, NOW + 5 * DAY),
           seen: sec(t),
           src: 'headers',
         },

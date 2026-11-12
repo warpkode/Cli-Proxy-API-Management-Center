@@ -2,10 +2,10 @@
  * One provider's pooled quota: hero remaining, the projection stats (plus the
  * reset grants waiting on this pool), the chart, and the accounts under it.
  *
- * A provider with a model-scoped weekly limit (Claude's Fable limit) gets a
- * scope switch in the header once an account reports it. Each segment shows
- * what that scope has left, so the other limit stays in view; choosing one
- * re-measures the whole card against it.
+ * Claude gets a scope switch in the header once an account reports its Fable
+ * limit: the whole weekly limit, or the part of it Fable can still use. Both
+ * are in percent of an account's weekly limit, so each segment's figure is
+ * comparable and Fable is never the larger; choosing one re-measures the card.
  *
  * Layout only; numbers come from buildPoolView (pool/poolView.ts).
  */
@@ -204,11 +204,7 @@ export function PoolCard(props: PoolCardProps) {
               capacity: formatPercent(summary.capacity),
             })}
           </span>
-          {scoped && (
-            <span className={styles.heroScope}>
-              {t(`quota_management.pool_scope_${scope}_limit`)}
-            </span>
-          )}
+          {scoped && <span className={styles.heroScope}>{scopeName(scope)}</span>}
           {plans.length === 1 && <span className={styles.plan}>{plans[0]}</span>}
         </p>
 
@@ -342,13 +338,11 @@ export function PoolCard(props: PoolCardProps) {
         />
       )}
 
-      {(!view.hasHistory || view.missing.length > 0 || view.blocked.length > 0) && (
+      {(scoped || !view.hasHistory || view.missing.length > 0) && (
         <ul className={styles.notes}>
+          {scoped && <li>{t(`quota_management.pool_scope_${scope}_note`)}</li>}
           {!view.hasHistory && members.length > 0 && (
             <li>{t('quota_management.pool_no_history')}</li>
-          )}
-          {view.blocked.length > 0 && (
-            <li>{t('quota_management.pool_fable_blocked', { count: view.blocked.length })}</li>
           )}
           {view.missing.length > 0 && (
             <li>{t('quota_management.pool_missing_data', { count: view.missing.length })}</li>

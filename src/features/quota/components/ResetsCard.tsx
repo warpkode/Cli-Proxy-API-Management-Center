@@ -14,6 +14,7 @@ import {
   RESET_POLICIES,
   grantKey,
   quotaResetsApi,
+  resetGrantEffect,
   type QuotaResetsState,
   type ResetGrant,
   type ResetPolicy,
@@ -103,6 +104,7 @@ export function ResetsCard(props: ResetsCardProps) {
 
   const clearsLabel = (grant: ResetGrant) => {
     if (grant.provider === 'codex') return t('quota_management.resets_clears_codex');
+    if (resetGrantEffect(grant) === 'fable') return t('quota_management.resets_clears_fable');
     const weekly = grant.clears.some((window) => window.startsWith('seven_day'));
     const fiveHour = grant.clears.includes('five_hour');
     if (weekly && fiveHour) return t('quota_management.resets_clears_both');

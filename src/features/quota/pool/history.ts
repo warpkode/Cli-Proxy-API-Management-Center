@@ -6,7 +6,7 @@
  * than through apiClient. It is optional; a missing file means "no recorded
  * line" and the pool view shows the projection only.
  *
- * Wire format (epoch seconds, `w` = weekly, `f` = 5-hour, `wf` = weekly Fable, 0..100):
+ * Wire format (epoch seconds, `w` = weekly, `f` = 5-hour, `wf` = Fable meter, 0..100):
  * `{ version: 1, interval, updated, samples: [{ t, a: [{ id, p, on, w, f, wf?, seen, src, plan? }] }] }`
  * `wf` is optional: samples written before the recorder learned it have none.
  */

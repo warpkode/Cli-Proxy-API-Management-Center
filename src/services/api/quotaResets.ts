@@ -41,7 +41,7 @@ export interface ResetGrant {
   accountId: string;
   provider: string;
   label: string;
-  /** Usage windows the grant clears (Claude), e.g. `seven_day`. Empty for Codex. */
+  /** Usage windows the grant clears (Claude), e.g. `seven_day`; see resetGrantEffect. Empty for Codex. */
   clears: string[];
   startsAtMs: number | null;
   expiresAtMs: number | null;
@@ -55,6 +55,21 @@ export interface ResetGrant {
   nextActionAtMs: number | null;
   state: ResetGrantState;
   last: ResetAttempt | null;
+}
+
+/** The reset window that holds an account's Fable usage (`7d_oi` in rate-limit headers). */
+export const FABLE_RESET_WINDOW = 'seven_day_overage_included';
+
+/**
+ * What spending a grant gives back: the whole weekly limit, only the weekly
+ * usage spent on Fable (a "Fable reset"), or nothing weekly at all (5-hour only).
+ * Codex credits reset every window.
+ */
+export type ResetGrantEffect = 'weekly' | 'fable' | 'none';
+
+export function resetGrantEffect(grant: Pick<ResetGrant, 'provider' | 'clears'>): ResetGrantEffect {
+  if (grant.provider === 'codex' || grant.clears.includes('seven_day')) return 'weekly';
+  return grant.clears.includes(FABLE_RESET_WINDOW) ? 'fable' : 'none';
 }
 
 /** Grant ids are only unique per account; this key is unique across the pool. */

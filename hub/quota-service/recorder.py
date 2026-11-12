@@ -13,8 +13,9 @@ account with no reading at all repeats its last known one (src "carry", same
 "seen") for up to CARRY_SECONDS; windows that have reset since are dropped.
 
 Per account: "w" weekly, "f" 5-hour and, for Claude accounts that report it,
-"wf" the weekly limit scoped to Fable. "wf" is left out when unknown, so older
-samples and other providers simply have none.
+"wf" the Fable meter: 0..100 over the half of the weekly limit that Fable may
+use. "wf" is left out when unknown, so older samples and other providers simply
+have none.
 """
 import json
 import os

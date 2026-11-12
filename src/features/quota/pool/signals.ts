@@ -6,8 +6,9 @@
  * - claude-seat-pacer: the plugin's own usage-endpoint snapshots (Claude only);
  * - history.json: the recorder's 5-minute samples.
  *
- * Claude accounts carry a third window next to weekly and 5-hour: the weekly
- * limit scoped to Fable, which the pool can be measured against on its own.
+ * Claude accounts carry a third window next to weekly and 5-hour: the Fable
+ * meter. It runs 0..100 over the share of the weekly limit that Fable may use
+ * (FABLE_WEEKLY_SHARE), and resets with the weekly window.
  */
 
 import type { AuthFileQuotaSignals } from '@/types/authFile';
@@ -53,10 +54,11 @@ const signalReader = (signals: Record<string, string>) => {
 const CLAUDE_PREFIX = 'anthropic-ratelimit-unified';
 
 /**
- * The unified headers name the Fable-scoped weekly window `7d_oi`. The name is
- * opaque: it is read as Fable because it carries the same utilization and reset
- * instant as the usage endpoint's `weekly_scoped` Fable limit. The seat-pacer
- * names its scope, so its reading wins whenever it is at least as fresh.
+ * The unified headers carry the Fable meter as `7d_oi`: the
+ * `seven_day_overage_included` window that a Fable reset clears, with the same
+ * utilization and reset instant as the usage endpoint's `weekly_scoped` Fable
+ * limit. The seat-pacer names its scope, so its reading wins whenever it is at
+ * least as fresh.
  */
 const CLAUDE_FABLE_WINDOW = '7d_oi';
 
@@ -174,7 +176,7 @@ export function readSeatPacerAccount(account: SeatPacerAccount): QuotaReading | 
   };
   const weekly = toReading((window) => window.kind === 'seven_day', WEEK_MS);
   const fiveHour = toReading((window) => window.kind === 'five_hour', FIVE_HOUR_MS);
-  // `weekly_scoped` covers any model-scoped limit; only the Fable one is pooled.
+  // `weekly_scoped` covers any model-scoped limit; only the Fable one is read.
   const fable = toReading(
     (window) => window.kind === 'weekly_scoped' && isFableModelName(window.scope),
     WEEK_MS

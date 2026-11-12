@@ -5,16 +5,21 @@
 
 import { useTranslation } from 'react-i18next';
 import { grantKey, type ResetGrant } from '@/services/api/quotaResets';
-import { accountLabel, fableBlockedUntil, type PoolAccount } from '../pool/accounts';
+import {
+  accountLabel,
+  accountRemaining,
+  fableAllowanceLeft,
+  type PoolAccount,
+} from '../pool/accounts';
 import { durationParts, formatInstant, formatPercent } from '../pool/format';
 import type { GrantOutcome } from '../pool/poolModel';
-import { scopedWindow, type PoolScope } from '../pool/types';
+import { scopeCapacity, scopedWindow, type PoolScope } from '../pool/types';
 import styles from './PoolAccountRows.module.scss';
 
 export interface PoolAccountRowsProps {
   caption: string;
   accounts: readonly PoolAccount[];
-  /** The limit each row's meter and status describe. */
+  /** What each row's figure, meter and status describe. */
   scope?: PoolScope;
   color: string;
   showEmails: boolean;
@@ -33,6 +38,8 @@ type RowTone = 'active' | 'empty' | 'held' | 'idle';
 interface Row {
   account: PoolAccount;
   remaining: number | null;
+  /** Fable: the weekly limit, not the Fable allowance, sets what is left. */
+  capped?: boolean;
   tone: RowTone;
   status: string;
   /** Bold lead word of the status line. */
@@ -68,16 +75,19 @@ export function PoolAccountRows(props: PoolAccountRowsProps) {
       )
       .sort((left, right) => left.atMs - right.atMs)[0];
 
+  const capacity = scopeCapacity(scope);
+
   const rows: Row[] = accounts.map((account) => {
-    const weekly = scopedWindow(account.quota, scope);
-    const remaining = weekly ? Math.max(0, 100 - weekly.used) : null;
+    const window = scopedWindow(account.quota, scope);
+    const remaining = accountRemaining(account, scope);
     const emptyAt = plan.emptyAt[account.key] ?? null;
     const { kind, untilMs } = account.status;
     const spend = plannedSpend(account.key);
-    // The account status speaks for the account-wide window; the Fable window
-    // carries its own.
-    const exhausted =
-      scope === 'fable' ? weekly?.status === 'rejected' : kind === 'weekly_exhausted';
+    const allowance = scope === 'fable' ? (fableAllowanceLeft(account) ?? 0) : 0;
+    const resetPlanned =
+      spend && (window?.resetAtMs === null || spend.atMs < (window?.resetAtMs ?? Infinity))
+        ? t('quota_management.pool_row_reset_planned', { time: when(spend.atMs) })
+        : '';
 
     if (remaining === null) {
       return {
@@ -89,31 +99,31 @@ export function PoolAccountRows(props: PoolAccountRowsProps) {
         rank: 5,
       };
     }
-    if (remaining <= 0 || exhausted) {
-      const refill =
-        spend && (weekly?.resetAtMs === null || spend.atMs < (weekly?.resetAtMs ?? Infinity))
-          ? t('quota_management.pool_row_reset_planned', { time: when(spend.atMs) })
-          : weekly?.resetAtMs
-            ? t('quota_management.pool_row_refills', { time: when(weekly.resetAtMs) })
-            : '';
+    if (scope === 'fable' && kind === 'weekly_exhausted' && allowance > 0) {
+      // Fable allowance is left, but the weekly limit it draws on is reached.
+      return {
+        account,
+        remaining: 0,
+        tone: 'held',
+        lead: t('quota_management.pool_row_weekly_limit'),
+        status:
+          resetPlanned ||
+          (untilMs ? t('quota_management.pool_row_back', { time: when(untilMs) }) : ''),
+        rank: 2,
+      };
+    }
+    if (remaining <= 0 || (scope === 'all' && kind === 'weekly_exhausted')) {
       return {
         account,
         remaining: 0,
         tone: 'empty',
         lead: t('quota_management.pool_row_empty'),
-        status: refill,
+        status:
+          resetPlanned ||
+          (window?.resetAtMs
+            ? t('quota_management.pool_row_refills', { time: when(window.resetAtMs) })
+            : ''),
         rank: 1,
-      };
-    }
-    if (scope === 'fable' && fableBlockedUntil(account) !== null) {
-      // Fable quota is left, but the account-wide weekly limit holds the account.
-      return {
-        account,
-        remaining,
-        tone: 'held',
-        lead: t('quota_management.pool_row_weekly_limit'),
-        status: untilMs ? t('quota_management.pool_row_back', { time: when(untilMs) }) : '',
-        rank: 2,
       };
     }
     if (kind === 'five_hour_blocked' || kind === 'cooldown') {
@@ -166,11 +176,19 @@ export function PoolAccountRows(props: PoolAccountRowsProps) {
       rank: account.key === plan.nextId ? 3 : 3.5,
     };
   });
+  for (const row of rows) {
+    // Less weekly quota left than Fable allowance: the weekly limit is what binds.
+    row.capped =
+      scope === 'fable' &&
+      row.remaining !== null &&
+      row.remaining > 0 &&
+      (fableAllowanceLeft(row.account) ?? 0) - row.remaining >= 0.5;
+  }
   rows.sort((left, right) => left.rank - right.rank);
 
   return (
     <ul className={styles.rows} aria-label={caption}>
-      {rows.map(({ account, remaining, tone, lead, status }) => {
+      {rows.map(({ account, remaining, capped, tone, lead, status }) => {
         const label = accountLabel(account.file, showEmails);
         const weeklyReset = scopedWindow(account.quota, scope)?.resetAtMs ?? null;
         const open = grants.filter((grant) => grant.accountId === account.key).length;
@@ -203,12 +221,12 @@ export function PoolAccountRows(props: PoolAccountRowsProps) {
                   { name: label.text }
                 )}
                 aria-valuemin={0}
-                aria-valuemax={100}
+                aria-valuemax={capacity}
                 aria-valuenow={Math.round(remaining ?? 0)}
               >
                 <span
                   className={styles.fill}
-                  style={{ width: `${remaining ?? 0}%`, background: color }}
+                  style={{ width: `${((remaining ?? 0) * 100) / capacity}%`, background: color }}
                 />
               </span>
             </span>
@@ -217,6 +235,12 @@ export function PoolAccountRows(props: PoolAccountRowsProps) {
               {status && <> · {status}</>}
             </span>
             <span className={styles.extra}>
+              {capped && (
+                <>
+                  {t('quota_management.pool_row_weekly_capped')}
+                  {(weeklyReset !== null || open > 0) && ' · '}
+                </>
+              )}
               {weeklyReset !== null &&
                 t('quota_management.pool_resets', { time: when(weeklyReset) })}
               {open > 0 && (

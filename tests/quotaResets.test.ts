@@ -322,6 +322,53 @@ describe('grants in the pool projection and on the page', () => {
     );
   });
 
+  test('a Fable reset gives back the weekly usage spent on Fable and is labelled as one', () => {
+    // On c3: at its weekly limit, with 20% of that limit spent on Fable.
+    const fableReset = {
+      ...resets.grants[0],
+      id: 'grant_fable',
+      clears: ['seven_day_overage_included'],
+    };
+    const input = {
+      accounts: claude,
+      history,
+      nowMs: NOW,
+      range: poolRange(NOW),
+      burnWindowHours: 3,
+      futureUsage: 'same' as const,
+      grants: [fableReset],
+      grantLeadMs: resets.leadMs,
+    };
+    // Spent ten minutes before it expires, like the weekly reset it replaces here,
+    // but it restores the Fable spend rather than the whole week (+100 above).
+    const spent = { kind: 'spent', atMs: NOW + 6 * HOUR - 600_000, amount: 20 };
+    const all = buildPoolView(input);
+    expect(all.grants.outcomes['c3:grant_fable']).toEqual(spent);
+    expect(view.grants.outcomes['c3:grant_c3']).toMatchObject({ kind: 'spent', amount: 100 });
+    // The Fable view of the same pool sees the same 20 points come back.
+    expect(buildPoolView({ ...input, scope: 'fable' }).grants.outcomes['c3:grant_fable']).toEqual(
+      spent
+    );
+
+    const plain = text(
+      renderToStaticMarkup(
+        createElement(ResetsCard, {
+          resets: { ...resets, grants: [fableReset] },
+          accounts,
+          outcomes: all.grants.outcomes,
+          nowMs: NOW,
+          showEmails: true,
+          resolvedTheme: 'dark',
+          canAct: true,
+          onState: () => undefined,
+        })
+      )
+    );
+    expect(plain).toContain('charlie@example.com Fable usage');
+    expect(plain).not.toContain('charlie@example.com Weekly');
+    expect(plain).toContain('restores ~20%');
+  });
+
   test('an off Codex credit blocks the other credits on that account until it expires', () => {
     const codexAccounts = accounts.filter((account) => account.provider === 'codex');
     const credit = resets.grants.find((grant) => grant.id === 'credit_x1');

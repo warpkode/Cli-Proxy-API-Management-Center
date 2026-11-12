@@ -18,17 +18,25 @@
  *   `leadMs` before the grant expires, `limit` when the account runs dry, `off`
  *   never. A grant that requires the limit (Claude) is refused while the account
  *   has quota; an `expiry` grant then keeps waiting for the limit until it expires.
- * - A pool is measured against one scope: every account's weekly window, or its
- *   Fable-scoped weekly window. History and burn follow the same scope. In the
- *   Fable scope an account at its account-wide weekly limit is blocked: its Fable
- *   quota still counts toward the total, but demand skips it until that limit
- *   resets, and the pool is empty once nothing unblocked has quota left.
+ * - Every figure is in percent of one account's weekly limit. A pool measures
+ *   one scope: the whole weekly limit, or what can still be spent on Fable. Fable
+ *   may use FABLE_WEEKLY_SHARE of the weekly limit and counts against it, so an
+ *   account's Fable quota is the smaller of its Fable allowance left and its
+ *   weekly quota left. History and burn follow the same rule.
+ * - In the Fable pool the simulation runs two demands: Fable demand draws on an
+ *   account's allowance and its weekly quota together, and the rest of the weekly
+ *   demand (other models) lowers weekly quota only. A weekly reset refills both.
+ * - A Fable reset gives back the weekly usage spent on Fable and nothing else; a
+ *   weekly reset grant refills everything.
  */
 
 import { HOUR_MS, MINUTE_MS } from '@/utils/time/durations';
 import { WEEK_MS } from './signals';
 import {
+  FABLE_WEEKLY_SHARE,
   scopedHistoryWindow,
+  scopeLeft,
+  scopeShare,
   type HistorySample,
   type HistoryWindow,
   type PoolScope,
@@ -146,8 +154,10 @@ export interface BurnIndex {
 }
 
 /**
- * Per-sample pooled increase, as a prefix sum. An account missing from a sample
- * keeps its last value, so a gap is bridged rather than read as a reset.
+ * Per-sample pooled increase, as a prefix sum, in percent of a weekly limit (a
+ * point on the Fable meter is worth FABLE_WEEKLY_SHARE of one). An account
+ * missing from a sample keeps its last value, so a gap is bridged rather than
+ * read as a reset.
  */
 export function buildBurnIndex(
   samples: readonly HistorySample[],
@@ -159,11 +169,12 @@ export function buildBurnIndex(
   const prefix: number[] = new Array(samples.length);
   let running = 0;
   let recordedFromMs: number | null = null;
+  const share = scopeShare(scope);
   samples.forEach((sample, index) => {
     for (const account of sample.accounts) {
       const window = scopedHistoryWindow(account, scope);
       if (!window || !accountIds.has(account.id)) continue;
-      const used = effectiveUsed(window, sample.t);
+      const used = share * effectiveUsed(window, sample.t);
       const previous = last.get(account.id);
       if (previous !== undefined && used > previous) running += used - previous;
       last.set(account.id, used);
@@ -250,7 +261,8 @@ export interface RecordedSeries {
  * first record, and an account the file never mentions contributes its current
  * live remaining (`fallbackRemaining`) so the line stays on the pool's scale.
  * The line starts at the first sample that records the scope for any pool
- * account: before that there is nothing recorded to draw.
+ * account: before that there is nothing recorded to draw. In the Fable scope an
+ * account's value is capped by the weekly quota it had left in the same sample.
  */
 export function buildRecordedSeries(
   samples: readonly HistorySample[],
@@ -261,11 +273,15 @@ export function buildRecordedSeries(
 ): RecordedSeries {
   const ids = new Set(accounts.map((account) => account.id));
   const current = new Map<string, HistoryWindow>();
+  /** Fable scope: each account's latest weekly window, which caps its Fable quota. */
+  const weekly = new Map<string, HistoryWindow>();
   let firstRecorded = samples.length;
   for (let index = 0; index < samples.length; index += 1) {
     for (const account of samples[index].accounts) {
+      if (!ids.has(account.id)) continue;
+      if (account.weekly && !weekly.has(account.id)) weekly.set(account.id, account.weekly);
       const window = scopedHistoryWindow(account, scope);
-      if (window && ids.has(account.id) && !current.has(account.id)) {
+      if (window && !current.has(account.id)) {
         current.set(account.id, window);
         firstRecorded = Math.min(firstRecorded, index);
       }
@@ -286,10 +302,17 @@ export function buildRecordedSeries(
   );
   const previousRemaining = new Map<string, number>();
 
+  const weeklyLeftAt = (id: string, atMs: number) => {
+    const window = scope === 'all' ? undefined : weekly.get(id);
+    return window ? 100 - effectiveUsed(window, atMs) : null;
+  };
+
   samples.forEach((sample, index) => {
     for (const account of sample.accounts) {
+      if (!ids.has(account.id)) continue;
+      if (account.weekly) weekly.set(account.id, account.weekly);
       const window = scopedHistoryWindow(account, scope);
-      if (window && ids.has(account.id)) current.set(account.id, window);
+      if (window) current.set(account.id, window);
     }
     if (index < startIndex || sample.t > toMs) return;
 
@@ -299,7 +322,7 @@ export function buildRecordedSeries(
     for (const account of accounts) {
       const window = current.get(account.id);
       const remaining = window
-        ? 100 - effectiveUsed(window, sample.t)
+        ? scopeLeft(scope, effectiveUsed(window, sample.t), weeklyLeftAt(account.id, sample.t))
         : clampPercent(account.fallbackRemaining);
       const before = previousRemaining.get(account.id);
       if (before !== undefined && remaining - before >= 1) {
@@ -323,16 +346,23 @@ export function buildRecordedSeries(
 
 export interface SimulationAccount {
   id: string;
-  /** 0..100 weekly used at `startMs`. */
+  /** Quota used at `startMs`, in percent of the account's weekly limit (0..capacity). */
   used: number;
   resetAtMs: number | null;
   periodMs: number;
   /**
-   * The account cannot serve before this instant (Fable scope: its account-wide
-   * weekly limit is reached). `Infinity` when the end of the block is unknown.
-   * Its quota still counts toward the pool total.
+   * Size of the window in percent of the weekly limit: 100 unless the window is
+   * a share of the weekly limit (Fable).
    */
-  blockedUntilMs?: number | null;
+  capacity?: number;
+  /**
+   * Weekly quota left, set when the window is a share of the weekly limit. The
+   * account serves only while both have quota, a reset refills both, and
+   * `ceilingBurnPerHour` lowers it without touching the window.
+   */
+  ceiling?: number;
+  /** All-models pool: weekly usage spent on Fable, which a Fable reset gives back. */
+  fableSpend?: number;
 }
 
 export const GRANT_POLICIES = ['expiry', 'limit', 'off'] as const;
@@ -350,8 +380,13 @@ export interface SimulationGrant {
   leadMs: number;
   /** Claude only accepts a reset while the account is at its limit. */
   requiresLimit: boolean;
-  /** Resets left on the grant; each spend restores the account to 100. */
+  /** Resets left on the grant; each spend refills the account. */
   left: number;
+  /**
+   * A Fable reset: it gives back the weekly usage spent on Fable and leaves the
+   * rest of the weekly limit as it was.
+   */
+  fableOnly?: boolean;
 }
 
 export type GrantOutcome =
@@ -368,6 +403,17 @@ export interface SimulationOptions {
   endMs: number;
   /** Pool-wide demand in percentage points per hour (burn × future-usage factor). */
   burnPerHour: number;
+  /**
+   * Further weekly demand that lowers ceilings only, in the same unit (Fable
+   * pool: what other models use). Ignored when no account has a ceiling.
+   */
+  ceilingBurnPerHour?: number;
+  /**
+   * All-models pool: the part of the demand that is Fable use (0..1). What an
+   * account serves adds that share to its Fable spend, up to the Fable
+   * allowance, so a Fable reset further ahead gives back a plausible amount.
+   */
+  fableShare?: number;
   stepMs?: number;
   grants?: readonly SimulationGrant[];
 }
@@ -377,10 +423,7 @@ export interface SimulationResult {
   perAccount: Record<string, SeriesPoint[]>;
   /** Weekly resets and grant spends, time-ordered. */
   stepUps: StepUpEvent[];
-  /**
-   * When the pool first cannot serve: every account is at 0 or blocked. Null if
-   * that does not happen before `endMs`.
-   */
+  /** When no account can serve any more, or null if not before `endMs`. */
   poolEmptyAtMs: number | null;
   /** The first single account to reach 0 (possibly already at `startMs`). */
   firstEmpty: { accountId: string; atMs: number } | null;
@@ -396,15 +439,46 @@ export interface SimulationResult {
 interface SimState {
   id: string;
   order: number;
+  /** Window quota left (0..capacity). */
   remaining: number;
+  capacity: number;
+  /** Weekly quota left; null when the window is not a share of the weekly limit. */
+  ceiling: number | null;
+  fableSpend: number;
   resetAtMs: number | null;
   periodMs: number;
-  blockedUntilMs: number | null;
 }
 
-/** Has quota and is free to serve at `atMs`. */
-const canServe = (entry: SimState, atMs: number) =>
-  entry.remaining > EPSILON && (entry.blockedUntilMs === null || atMs >= entry.blockedUntilMs);
+const CEILING_FULL = 100;
+/** Spans shorter than this are float residue, not time left to simulate. */
+const TIME_EPSILON_MS = 1e-6;
+
+const capacityOf = (account: SimulationAccount) =>
+  account.capacity !== undefined && account.capacity > 0 ? account.capacity : 100;
+
+const windowLeft = (account: SimulationAccount) => {
+  const capacity = capacityOf(account);
+  return capacity - Math.min(capacity, Math.max(0, account.used));
+};
+
+/** What an account can serve at the start: its window, capped by its weekly quota. */
+const startingRemaining = (account: SimulationAccount) =>
+  account.ceiling === undefined
+    ? windowLeft(account)
+    : Math.min(windowLeft(account), clampPercent(account.ceiling));
+
+/** What an account can still serve: its window, capped by its weekly quota. */
+const usableOf = (entry: SimState) =>
+  entry.ceiling === null ? entry.remaining : Math.min(entry.remaining, entry.ceiling);
+
+const canServe = (entry: SimState) => usableOf(entry) > EPSILON;
+
+/** A reset: the window and the weekly quota it draws on are whole again. */
+const refill = (entry: SimState) => {
+  entry.remaining = entry.capacity;
+  if (entry.ceiling !== null) entry.ceiling = CEILING_FULL;
+  entry.fableSpend = 0;
+};
 
 interface GrantState extends SimulationGrant {
   spent: number;
@@ -447,18 +521,19 @@ export function simulatePool(
 
   const state: SimState[] = accounts.map((account, order) => {
     const periodMs = account.periodMs > 0 ? account.periodMs : WEEK_MS;
-    const blockedUntilMs = account.blockedUntilMs ?? null;
     const entry: SimState = {
       id: account.id,
       order,
-      remaining: 100 - clampPercent(account.used),
+      remaining: windowLeft(account),
+      capacity: capacityOf(account),
+      ceiling: account.ceiling === undefined ? null : clampPercent(account.ceiling),
+      fableSpend: Math.max(0, account.fableSpend ?? 0),
       resetAtMs: account.resetAtMs,
       periodMs,
-      blockedUntilMs: blockedUntilMs !== null && blockedUntilMs > startMs ? blockedUntilMs : null,
     };
     // A reset at or before the start already happened: the window is fresh.
     while (entry.resetAtMs !== null && entry.resetAtMs <= startMs) {
-      entry.remaining = 100;
+      refill(entry);
       entry.resetAtMs += periodMs;
     }
     result.perAccount[account.id] = [];
@@ -466,6 +541,10 @@ export function simulatePool(
     return entry;
   });
   const byId = new Map(state.map((entry) => [entry.id, entry]));
+  /** Windows that share the weekly limit: demand is simulated as two streams. */
+  const shared = state.some((entry) => entry.ceiling !== null);
+  const ceilingRatePerMs = shared ? Math.max(0, options.ceilingBurnPerHour ?? 0) / HOUR_MS : 0;
+  const fableShare = shared ? 0 : Math.min(1, Math.max(0, options.fableShare ?? 0));
 
   const grants: GrantState[] = (options.grants ?? [])
     .filter((grant) => byId.has(grant.accountId))
@@ -492,15 +571,13 @@ export function simulatePool(
     }
   }
 
-  const total = () => state.reduce((sum, entry) => sum + entry.remaining, 0);
+  const total = () => state.reduce((sum, entry) => sum + usableOf(entry), 0);
   const emit = (t: number) => {
     result.pool.push({ t, value: total() });
-    state.forEach((entry) => result.perAccount[entry.id].push({ t, value: entry.remaining }));
+    state.forEach((entry) => result.perAccount[entry.id].push({ t, value: usableOf(entry) }));
   };
   const checkPoolEmpty = (atMs: number) => {
-    if (result.poolEmptyAtMs === null && state.every((entry) => !canServe(entry, atMs))) {
-      result.poolEmptyAtMs = atMs;
-    }
+    if (result.poolEmptyAtMs === null && !state.some(canServe)) result.poolEmptyAtMs = atMs;
   };
   const markEmpty = (entry: SimState, atMs: number) => {
     if (result.emptyAt[entry.id] === null) result.emptyAt[entry.id] = atMs;
@@ -511,10 +588,21 @@ export function simulatePool(
   const spendGrant = (grant: GrantState, atMs: number): boolean => {
     const entry = byId.get(grant.accountId);
     if (!entry || !grantActive(grant, atMs)) return false;
-    if (grant.requiresLimit && entry.remaining > EPSILON) return false;
-    const amount = 100 - entry.remaining;
+    const before = usableOf(entry);
+    if (grant.requiresLimit && before > EPSILON) return false;
     emit(atMs);
-    entry.remaining = 100;
+    if (!grant.fableOnly) {
+      refill(entry);
+    } else if (entry.ceiling === null) {
+      // All-models pool: the weekly usage spent on Fable comes back.
+      entry.remaining = Math.min(entry.capacity, entry.remaining + entry.fableSpend);
+      entry.fableSpend = 0;
+    } else {
+      // Fable pool: the allowance is whole again and its use leaves the weekly quota.
+      entry.ceiling = Math.min(CEILING_FULL, entry.ceiling + entry.capacity - entry.remaining);
+      entry.remaining = entry.capacity;
+    }
+    const amount = usableOf(entry) - before;
     grant.left -= 1;
     grant.spent += 1;
     grant.retrying = false;
@@ -541,19 +629,82 @@ export function simulatePool(
     }
   };
 
+  /**
+   * Shared windows (Fable pool): two demands at once. The pool's own demand
+   * draws on an account's window and its weekly quota together; the rest of the
+   * weekly demand lowers weekly quota only. Each goes to the soonest-reset
+   * account that can take it, and the span is cut wherever an account runs out,
+   * so the next one takes over at that instant.
+   */
+  const spendShared = (fromMs: number, toMs: number) => {
+    let cursor = fromMs;
+    // Every pass reaches `toMs` or empties a meter, so this ends; the bound is a backstop.
+    for (let pass = 0; pass < 10_000 && toMs - cursor > TIME_EPSILON_MS; pass += 1) {
+      const server = ratePerMs > 0 ? state.filter(canServe).sort(bySoonestReset)[0] : undefined;
+      const other =
+        ceilingRatePerMs > 0
+          ? state.filter((entry) => (entry.ceiling ?? 0) > EPSILON).sort(bySoonestReset)[0]
+          : undefined;
+      if (!server && !other) break;
+      const serverCeilingRate = ratePerMs + (other === server ? ceilingRatePerMs : 0);
+
+      let span = toMs - cursor;
+      if (server) {
+        span = Math.min(span, server.remaining / ratePerMs);
+        if (server.ceiling !== null) span = Math.min(span, server.ceiling / serverCeilingRate);
+      }
+      if (other && other !== server && other.ceiling !== null) {
+        span = Math.min(span, other.ceiling / ceilingRatePerMs);
+      }
+
+      const touched = other && other !== server ? [server, other] : [server ?? other];
+      const couldServe = touched.map((entry) => (entry ? canServe(entry) : false));
+      if (server) {
+        server.remaining -= ratePerMs * span;
+        if (server.ceiling !== null) server.ceiling -= serverCeilingRate * span;
+      }
+      if (other && other !== server && other.ceiling !== null) {
+        other.ceiling -= ceilingRatePerMs * span;
+      }
+      cursor += span;
+
+      const atMs = Math.round(cursor);
+      touched.forEach((entry, index) => {
+        if (!entry) return;
+        if (entry.remaining <= EPSILON) entry.remaining = 0;
+        if (entry.ceiling !== null && entry.ceiling <= EPSILON) entry.ceiling = 0;
+        if (couldServe[index] && !canServe(entry)) {
+          markEmpty(entry, atMs);
+          onEmpty(entry, atMs);
+        }
+      });
+      checkPoolEmpty(atMs);
+    }
+  };
+
   const spend = (fromMs: number, toMs: number) => {
-    if (toMs <= fromMs || ratePerMs <= 0) return;
+    if (toMs <= fromMs) return;
+    if (shared) {
+      spendShared(fromMs, toMs);
+      return;
+    }
+    if (ratePerMs <= 0) return;
     let demand = ratePerMs * (toMs - fromMs);
     let spent = 0;
     // Re-pick after each account runs dry: a grant may have just restored it.
-    // A block only lifts at an event boundary, so `fromMs` decides it for the span.
     while (demand > EPSILON) {
-      const entry = state.filter((item) => canServe(item, fromMs)).sort(bySoonestReset)[0];
+      const entry = state.filter(canServe).sort(bySoonestReset)[0];
       if (!entry) break;
       const take = Math.min(entry.remaining, demand);
       entry.remaining -= take;
       demand -= take;
       spent += take;
+      if (fableShare > 0) {
+        entry.fableSpend = Math.min(
+          FABLE_WEEKLY_SHARE * entry.capacity,
+          entry.fableSpend + fableShare * take
+        );
+      }
       if (entry.remaining <= EPSILON) {
         entry.remaining = 0;
         const atMs = Math.round(fromMs + spent / ratePerMs);
@@ -578,7 +729,7 @@ export function simulatePool(
     for (const grant of grants) {
       if (grant.startsAtMs !== atMs || grant.policy !== 'limit') continue;
       const entry = byId.get(grant.accountId);
-      if (entry && entry.remaining <= EPSILON) spendGrant(grant, atMs);
+      if (entry && !canServe(entry)) spendGrant(grant, atMs);
     }
   };
 
@@ -598,13 +749,13 @@ export function simulatePool(
 
   emit(startMs);
   for (const entry of [...state].sort(bySoonestReset)) {
-    if (entry.remaining > EPSILON) continue;
+    if (canServe(entry)) continue;
     markEmpty(entry, startMs);
     onEmpty(entry, startMs);
   }
   fireDueGrants(startMs);
   checkPoolEmpty(startMs);
-  const drainOrder = state.filter((entry) => canServe(entry, startMs)).sort(bySoonestReset);
+  const drainOrder = state.filter(canServe).sort(bySoonestReset);
   result.activeAccountId = drainOrder[0]?.id ?? null;
   result.nextAccountId = drainOrder[1]?.id ?? null;
   let t = startMs;
@@ -617,10 +768,7 @@ export function simulatePool(
       const consider = (at: number | null) => {
         if (at !== null && at > cursor && at <= stepEnd) nextEvent = Math.min(nextEvent, at);
       };
-      state.forEach((entry) => {
-        consider(entry.resetAtMs);
-        consider(entry.blockedUntilMs);
-      });
+      state.forEach((entry) => consider(entry.resetAtMs));
       grants.forEach((grant) => {
         if (grant.retrying) consider(grant.expiresAtMs);
         else if (grant.spent === 0 && grant.left > 0) consider(grant.dueAtMs);
@@ -637,8 +785,9 @@ export function simulatePool(
         emit(at);
         let amount = 0;
         for (const entry of resetting) {
-          amount += 100 - entry.remaining;
-          entry.remaining = 100;
+          const before = usableOf(entry);
+          refill(entry);
+          amount += usableOf(entry) - before;
           entry.resetAtMs = at + entry.periodMs;
         }
         result.stepUps.push({
@@ -708,8 +857,8 @@ export function summarizePool(
   nowMs: number,
   horizonEndMs: number
 ): PoolSummary {
-  const capacity = accounts.length * 100;
-  const remaining = accounts.reduce((sum, account) => sum + 100 - clampPercent(account.used), 0);
+  const capacity = accounts.reduce((sum, account) => sum + capacityOf(account), 0);
+  const remaining = accounts.reduce((sum, account) => sum + startingRemaining(account), 0);
   return {
     accountCount: accounts.length,
     capacity,

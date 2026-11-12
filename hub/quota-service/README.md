@@ -5,8 +5,9 @@ Runs on the hub host next to CLIProxyAPI (user systemd units). Python 3 standard
 - `recorder.py` (`quota-history.timer`, every 5 min): appends pooled quota samples to
   `~/quota-history/public/history.json` from hub data only. After a hub restart, an
   account with no reading repeats its last known one (`src: "carry"`) for up to 6 h.
-  Each account records `w` (weekly) and `f` (5-hour); Claude accounts that report the
-  Fable-scoped weekly limit also record `wf`, which the quota page's Fable view charts.
+  Each account records `w` (weekly) and `f` (5-hour); Claude accounts that report a Fable
+  limit also record `wf`, the raw Fable meter (0..100 over the half of the weekly limit
+  that Fable may use). The quota page converts it to weekly points for its Fable view.
 - `resets.py` (`quota-resets.service`): spends Claude reset grants (`cedar_ember`) and
   Codex rate-limit reset credits before they expire. All upstream calls go through
   `POST /v8/management/requests/api-call`, so it never handles OAuth tokens.

@@ -137,7 +137,7 @@
   color: var(--text-secondary);
 }
 
-/* Names the limit when the card is not on the account-wide one. */
+/* Names what the figure is for when the card is not on the whole weekly limit. */
 .heroScope::before {
   content: '·';
   margin-right: 8px;
