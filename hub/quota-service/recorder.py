@@ -11,6 +11,10 @@ calls to Anthropic or OpenAI.
 After a hub restart the cached signals stay empty until traffic flows, so an
 account with no reading at all repeats its last known one (src "carry", same
 "seen") for up to CARRY_SECONDS; windows that have reset since are dropped.
+
+Per account: "w" weekly, "f" 5-hour and, for Claude accounts that report it,
+"wf" the weekly limit scoped to Fable. "wf" is left out when unknown, so older
+samples and other providers simply have none.
 """
 import json
 import os
@@ -24,6 +28,10 @@ OUT = os.path.join(HERE, "public", "history.json")
 KEEP_SECONDS = 14 * 24 * 3600
 CARRY_SECONDS = 6 * 3600
 KEY_FILE = os.path.expanduser("~/.config/cliproxyapi/management-key")
+# Windows written only when known, to keep the file small.
+OPTIONAL_WINDOWS = ("wf",)
+# Display names the usage endpoint has used for the Fable-scoped weekly limit.
+FABLE_SCOPES = ("fable", "fable 5")
 
 
 def get(path):
@@ -53,6 +61,48 @@ def window(used, resets):
     return None if used is None else {"used": round(used, 2), "reset": resets}
 
 
+def header_window(sig, name):
+    """One Claude unified-header window ("7d", "5h", "7d_oi"), or None."""
+    used = num(sig.get(f"Anthropic-Ratelimit-Unified-{name}-Utilization"))
+    return window(None if used is None else used * 100,
+                  epoch(sig.get(f"Anthropic-Ratelimit-Unified-{name}-Reset")))
+
+
+def pacer_window(snap, kind, scopes=None):
+    """The first seat-pacer window of `kind` (and one of `scopes`, if given), or None."""
+    for w in (snap or {}).get("windows", []):
+        if w.get("kind") != kind:
+            continue
+        if scopes is not None and str(w.get("scope") or "").strip().lower() not in scopes:
+            continue
+        used = num(w.get("utilization"))
+        if used is not None:
+            return window(used * 100, epoch(w.get("resets_at")))
+    return None
+
+
+def claude_reading(sig, seen, snap):
+    """(weekly, five_hour, fable, seen, src) for one Claude account.
+
+    Header signals by default; a seat-pacer snapshot at least as fresh replaces
+    the windows it reports. The Fable-scoped weekly window is "7d_oi" in the
+    headers and a "weekly_scoped" window scoped to Fable in the snapshot; when the
+    preferred source has none, the other one is used.
+    """
+    weekly, five, fable = (header_window(sig, name) for name in ("7d", "5h", "7d_oi"))
+    src = "headers"
+    pacer_fable = pacer_window(snap, "weekly_scoped", FABLE_SCOPES)
+    pacer_seen = epoch(snap.get("observed_at")) if snap else None
+    if snap and (seen is None or (pacer_seen is not None and pacer_seen >= seen)):
+        weekly = pacer_window(snap, "seven_day") or weekly
+        five = pacer_window(snap, "five_hour") or five
+        fable = pacer_fable or fable
+        seen, src = pacer_seen, "usage"
+    elif fable is None:
+        fable = pacer_fable
+    return weekly, five, fable, seen, src
+
+
 def carry_forward(accounts, samples, now):
     """Fill accounts without any reading from their newest earlier one (<= CARRY_SECONDS old)."""
     for rec in accounts:
@@ -63,10 +113,12 @@ def carry_forward(accounts, samples, now):
             if prev is None or prev.get("seen") is None:
                 continue
             if now - prev["seen"] <= CARRY_SECONDS:
-                for key in ("w", "f"):
+                for key in ("w", "f") + OPTIONAL_WINDOWS:
                     win = prev.get(key)
-                    rec[key] = win if win and (win.get("reset") is None or win["reset"] > now) \
+                    win = win if win and (win.get("reset") is None or win["reset"] > now) \
                         else None
+                    if win is not None or key not in OPTIONAL_WINDOWS:
+                        rec[key] = win
                 if prev.get("plan") and not rec.get("plan"):
                     rec["plan"] = prev["plan"]
                 rec.update({"seen": prev["seen"], "src": "carry"})
@@ -93,24 +145,9 @@ def main():
         sig = (f.get("quota") or {}).get("signals") or {}
         seen = epoch((f.get("quota") or {}).get("observed_at"))
         rec = {"id": idx, "p": provider, "on": not f.get("disabled", False)}
+        fable = None
         if provider == "claude":
-            weekly = window(
-                None if num(sig.get("Anthropic-Ratelimit-Unified-7d-Utilization")) is None
-                else num(sig["Anthropic-Ratelimit-Unified-7d-Utilization"]) * 100,
-                epoch(sig.get("Anthropic-Ratelimit-Unified-7d-Reset")))
-            five = window(
-                None if num(sig.get("Anthropic-Ratelimit-Unified-5h-Utilization")) is None
-                else num(sig["Anthropic-Ratelimit-Unified-5h-Utilization"]) * 100,
-                epoch(sig.get("Anthropic-Ratelimit-Unified-5h-Reset")))
-            src = "headers"
-            snap = pacer.get(idx)
-            if snap and (seen is None or epoch(snap.get("observed_at")) >= seen):
-                for w in snap.get("windows", []):
-                    if w.get("kind") == "seven_day":
-                        weekly = window(num(w.get("utilization")) * 100, epoch(w.get("resets_at")))
-                    elif w.get("kind") == "five_hour":
-                        five = window(num(w.get("utilization")) * 100, epoch(w.get("resets_at")))
-                seen, src = epoch(snap.get("observed_at")), "usage"
+            weekly, five, fable, seen, src = claude_reading(sig, seen, pacer.get(idx))
         else:
             primary_minutes = num(sig.get("X-Codex-Primary-Window-Minutes")) or 0
             secondary_minutes = num(sig.get("X-Codex-Secondary-Window-Minutes")) or 0
@@ -123,6 +160,8 @@ def main():
             src = "headers"
             rec["plan"] = sig.get("X-Codex-Plan-Type")
         rec.update({"w": weekly, "f": five, "seen": seen, "src": src})
+        if fable is not None:
+            rec["wf"] = fable
         accounts.append(rec)
 
     try:
