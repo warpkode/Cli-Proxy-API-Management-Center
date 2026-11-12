@@ -233,6 +233,14 @@
   font-size: 12.5px;
 }
 
+/* A reset the scheduler could not spend on its own right now. */
+.blocked {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--accent-amber-text);
+  font-size: 12.5px;
+}
+
 .recent {
   margin-top: 6px;
   padding-top: 8px;

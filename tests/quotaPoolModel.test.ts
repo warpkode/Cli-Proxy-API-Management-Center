@@ -1068,6 +1068,7 @@ describe('Fable scope', () => {
       policySet: true,
       nextActionAtMs: null,
       state: 'pending',
+      blocker: null,
       last: null,
     });
     // "b" is at its weekly limit with Fable allowance left; "c" reports no Fable window.
@@ -1168,7 +1169,8 @@ describe('Fable scope', () => {
       ahead.policy = 'expiry';
       ahead.requiresLimit = false;
       const outcome = buildPoolView({ ...base, grants: [ahead] }).grants.outcomes['a:later'];
-      const dueMs = NOW + 6 * HOUR - 10 * 60_000;
+      // No lead given: the scheduler's default, an hour before the expiry.
+      const dueMs = NOW + 5 * HOUR;
       expect(outcome).toMatchObject({ kind: 'spent', atMs: dueMs });
       expect((outcome as { amount: number }).amount).toBeCloseTo(5 + (dueMs - NOW) / HOUR, 6);
       // Every pending grant on a member is listed; the 5-hour one is not simulated.

@@ -55,7 +55,15 @@ export function ResetsCard(props: ResetsCardProps) {
   const showConfirmation = useNotificationStore((state) => state.showConfirmation);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const minutes = Math.round(resets.leadMs / 60_000);
+  // "1h", "90 min" as "1h 30m", "10m": how long before expiry the scheduler starts.
+  const leadParts = durationParts(resets.leadMs);
+  const leadHours = leadParts.days * 24 + leadParts.hours;
+  const lead =
+    leadHours > 0 && leadParts.minutes === 0
+      ? t('quota_management.pool_burn_window_option', { hours: leadHours })
+      : leadHours > 0
+        ? t('quota_management.pool_duration_hm', { hours: leadHours, minutes: leadParts.minutes })
+        : t('quota_management.pool_duration_m', { minutes: Math.max(1, leadParts.minutes) });
   const when = (ms: number) => formatInstant(ms, nowMs, locale);
   const countdown = (ms: number) => {
     const { days, hours, minutes: mins } = durationParts(ms - nowMs);
@@ -68,7 +76,7 @@ export function ResetsCard(props: ResetsCardProps) {
     return t('quota_management.pool_in_duration', { duration });
   };
   const policyLabel = (policy: ResetPolicy) =>
-    t(`quota_management.resets_policy_${policy}`, { minutes });
+    t(`quota_management.resets_policy_${policy}`, { lead });
   const resultLabel = (code: string) =>
     t(`quota_management.resets_result_${code}`, { defaultValue: code.replace(/_/g, ' ') });
 
@@ -242,7 +250,9 @@ export function ResetsCard(props: ResetsCardProps) {
           </span>
           {t('quota_management.resets_title')}
           <span className={styles.subtitle}>
-            {t(`quota_management.resets_subtitle_${resets.defaultPolicy}`, { minutes })}
+            {resets.armed
+              ? t(`quota_management.resets_subtitle_${resets.defaultPolicy}`, { lead })
+              : t('quota_management.resets_subtitle_dry_run')}
           </span>
         </h2>
         <div className={styles.defaultPolicy}>
@@ -340,14 +350,19 @@ export function ResetsCard(props: ResetsCardProps) {
                   <p className={styles.plan}>
                     {plan}
                     {grant.last && (
-                      <>
+                      <span title={grant.last.detail || undefined}>
                         {plan && ' · '}
                         {t('quota_management.resets_last', {
                           time: when(grant.last.atMs),
                           result: resultLabel(grant.last.result),
                         })}
-                      </>
+                      </span>
                     )}
+                  </p>
+                )}
+                {grant.blocker && grant.policy !== 'off' && (
+                  <p className={styles.blocked} role="status">
+                    {t('quota_management.resets_blocked', { reason: resultLabel(grant.blocker) })}
                   </p>
                 )}
               </li>
@@ -424,7 +439,10 @@ export function ResetsCard(props: ResetsCardProps) {
                       defaultValue: entry.trigger,
                     })}
                   </span>
-                  <span className={SPENT_RESULTS.has(entry.result) ? styles.ok : undefined}>
+                  <span
+                    className={SPENT_RESULTS.has(entry.result) ? styles.ok : undefined}
+                    title={entry.detail || undefined}
+                  >
                     {resultLabel(entry.result)}
                   </span>
                 </li>

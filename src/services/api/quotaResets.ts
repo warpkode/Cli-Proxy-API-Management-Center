@@ -54,6 +54,11 @@ export interface ResetGrant {
   policySet: boolean;
   nextActionAtMs: number | null;
   state: ResetGrantState;
+  /**
+   * Why the scheduler could not spend this automatically right now, judged from
+   * its last reading (e.g. `not_usable`, `stale`); null when nothing is in the way.
+   */
+  blocker: string | null;
   last: ResetAttempt | null;
 }
 
@@ -102,13 +107,16 @@ export interface QuotaResetsState {
   updatedMs: number | null;
   startedMs: number | null;
   leadMs: number;
+  /** False while the scheduler runs as a dry run: it goes through the motions and spends nothing. */
+  armed: boolean;
   defaultPolicy: ResetPolicy;
   accounts: ResetAccount[];
   grants: ResetGrant[];
   log: ResetLogEntry[];
 }
 
-const DEFAULT_LEAD_MS = 10 * 60 * 1000;
+/** The scheduler's own default lead, for a state file that does not state one. */
+const DEFAULT_LEAD_MS = 60 * 60 * 1000;
 const TEXT_LIMIT = 120;
 
 const epochMs = (value: unknown): number | null =>
@@ -169,6 +177,7 @@ const readGrant = (value: unknown, defaultPolicy: ResetPolicy): ResetGrant | nul
     policySet: value.policy_set === true,
     nextActionAtMs: epochMs(value.next_action),
     state: (state || 'pending') as ResetGrantState,
+    blocker: text(value.blocker) || null,
     last: readAttempt(value.last),
   };
 };
@@ -216,6 +225,7 @@ export function normalizeQuotaResetsState(payload: unknown): QuotaResetsState | 
     updatedMs: epochMs(payload.updated),
     startedMs: epochMs(service.started),
     leadMs: Number.isFinite(leadSeconds) && leadSeconds >= 0 ? leadSeconds * 1000 : DEFAULT_LEAD_MS,
+    armed: service.armed !== false,
     defaultPolicy,
     accounts: list(payload.accounts)
       .map(readAccount)

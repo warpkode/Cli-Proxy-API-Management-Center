@@ -110,7 +110,9 @@ describe('reset scheduler state file', () => {
       service: { default_policy: 'sometimes' },
     });
     expect(unknownPolicy?.defaultPolicy).toBe('expiry');
-    expect(unknownPolicy?.leadMs).toBe(600_000);
+    // A file that states no lead gets the scheduler's own default: one hour.
+    expect(unknownPolicy?.leadMs).toBe(3_600_000);
+    expect(unknownPolicy?.armed).toBe(true);
   });
 
   test('fetch reads the same-origin file; 404 or an HTML page means not installed', async () => {
@@ -271,7 +273,7 @@ describe('grants in the pool projection and on the page', () => {
       })
     );
     const plain = text(markup);
-    expect(plain).toContain('Resets spent automatically 10 min before they expire');
+    expect(plain).toContain('Resets spent automatically 10m before they expire');
     // Soonest expiry first; Claude grants name the window they clear.
     const order = ['charlie', 'alpha', 'echo'].map((name) =>
       plain.indexOf(`${name}@example.com Weekly`)
@@ -290,13 +292,73 @@ describe('grants in the pool projection and on the page', () => {
     expect(plain).toMatch(/Last attempt \w{3} [^·]+· not at its limit/);
     // One policy group per pending grant, with the current policy pressed.
     expect(markup.match(/role="group"/g)).toHaveLength(3);
-    expect(markup.match(/aria-pressed="true"[^>]*>10 min before expiry</g)).toHaveLength(2);
+    expect(markup.match(/aria-pressed="true"[^>]*>10m before expiry</g)).toHaveLength(2);
     expect(markup).toMatch(/aria-pressed="true"[^>]*>When limited</);
     expect(markup.match(/>Use now</g)).toHaveLength(3);
     // The spent credit, the account that could not be read, and the activity log.
     expect(plain).toMatch(/echo@example\.com Spent \w{3} [^·]+· reset/);
     expect(plain).toContain('read resets for bravo@example.com (rate limited)');
     expect(plain).toContain('Activity');
+  });
+
+  test('the card states the lead, flags a reset it could not spend, and names every result', () => {
+    const payload = resetsPayload();
+    const render = (service: Record<string, unknown>, mutate?: () => void) => {
+      const next = resetsPayload();
+      next.service = service as typeof next.service;
+      Object.assign(next.grants[0], { blocker: 'not_usable' });
+      Object.assign(next.grants[2], {
+        last: {
+          t: Math.floor(NOW / 1000) - 600,
+          trigger: 'expiry',
+          result: 'nothing_to_reset',
+          detail: 'nothing to reset at this usage; credit kept',
+          http: 200,
+        },
+      });
+      mutate?.();
+      const state = normalizeQuotaResetsState(next) as QuotaResetsState;
+      const markup = renderToStaticMarkup(
+        createElement(ResetsCard, {
+          resets: state,
+          accounts,
+          outcomes: {},
+          nowMs: NOW,
+          showEmails: true,
+          resolvedTheme: 'dark',
+          canAct: true,
+          onState: () => undefined,
+        })
+      );
+      return { state, markup, plain: text(markup) };
+    };
+
+    const hour = render({ ...payload.service, lead_seconds: 3600 });
+    expect(hour.state.leadMs).toBe(3_600_000);
+    expect(hour.state.armed).toBe(true);
+    expect(hour.plain).toContain('Resets spent automatically 1h before they expire');
+    expect(hour.markup.match(/aria-pressed="true"[^>]*>1h before expiry</g)).toHaveLength(2);
+    // What the scheduler says stands in the way, in the reader's words.
+    expect(hour.state.grants.map((grant) => grant.blocker)).toEqual([
+      'not_usable',
+      null,
+      null,
+      null,
+    ]);
+    expect(hour.plain).toContain('be spent automatically right now: not usable yet');
+    expect(hour.markup.match(/role="status"/g)).toHaveLength(1);
+    // A refusal is named as one, with the scheduler's own detail on hover.
+    expect(hour.plain).toMatch(/Last attempt \w{3} [^·]+· nothing to reset yet/);
+    expect(hour.markup).toContain('title="nothing to reset at this usage; credit kept"');
+
+    expect(render({ ...payload.service, lead_seconds: 5400 }).plain).toContain(
+      'spent automatically 1h 30m before they expire'
+    );
+    // A dry run must not claim that anything is spent.
+    const dry = render({ ...payload.service, lead_seconds: 3600, armed: false });
+    expect(dry.state.armed).toBe(false);
+    expect(dry.plain).toContain('Resets dry run: nothing is spent automatically');
+    expect(dry.plain).not.toContain('before they expire');
   });
 
   test('a 5-hour-only grant restores no weekly capacity in the projection', () => {

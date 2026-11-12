@@ -99,7 +99,7 @@ export interface PoolViewInput {
   grantLeadMs?: number;
 }
 
-const DEFAULT_GRANT_LEAD_MS = 10 * 60 * 1000;
+const DEFAULT_GRANT_LEAD_MS = 60 * 60 * 1000;
 
 /**
  * Until when the scheduler refuses to consume this Codex credit: a consume cannot
