@@ -35,6 +35,33 @@
   @include text-ellipsis;
 }
 
+/* The extra-usage state describes this label, not the credential. */
+.claudeExtraUsageTitle {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
+
+  // Override the mobile label width so the state can stay alongside it.
+  .quotaModel {
+    width: auto;
+  }
+}
+
+.claudeExtraUsageStatus {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: $radius-full;
+  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
 /* 遥测：mono + 等宽数字，刷新时数字不跳位 */
 .quotaMeta {
   display: inline-flex;
@@ -188,6 +215,44 @@
   .quotaBarFill {
     transition: none;
     animation: none;
+  }
+}
+
+/* ---------- Compact layout: glance card ----------
+ * QuotaCard sets data-quota-glance in the Compact layout. A glance keeps the plan and one line
+ * per limit (name, percent, bar); reset times, amounts, credit lists and group notes stay in
+ * the full card, which the card's details toggle opens. */
+
+[data-quota-glance] {
+  .quotaRow {
+    gap: 3px;
+  }
+
+  /* A glance row is only a name and a percent: keep it on one line on phones too. */
+  .quotaRowHeader {
+    flex-direction: row;
+    align-items: baseline;
+  }
+
+  .quotaModel {
+    width: auto;
+    @include text-ellipsis;
+  }
+
+  // Keep status/error notices visible: they can warn that displayed quotas are stale.
+  .quotaReset,
+  .quotaResetRelative,
+  .quotaAmount,
+  .codexResetCredits,
+  .antigravityQuotaGroupDescription,
+  .codexPlanLabel,
+  .codexPlanItem:not([data-quota-plan]) {
+    display: none;
+  }
+
+  /* Own rule: a browser without :has() drops only this one, not the rules above. */
+  .codexPlan:not(:has([data-quota-plan])) {
+    display: none;
   }
 }
 

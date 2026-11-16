@@ -342,7 +342,14 @@ describe('pool accounts', () => {
     );
     expect(toSimulationAccounts(claude, 'fable')).toEqual([
       // used and capacity are in percent of the weekly limit: 60% of the meter is 30 of 50.
-      { id: 'c1', resetAtMs: NOW + 2 * DAY, periodMs: WEEK_MS, used: 30, capacity: 50, ceiling: 55 },
+      {
+        id: 'c1',
+        resetAtMs: NOW + 2 * DAY,
+        periodMs: WEEK_MS,
+        used: 30,
+        capacity: 50,
+        ceiling: 55,
+      },
       {
         id: 'c2',
         resetAtMs: sec(NOW + 5 * DAY),
@@ -592,5 +599,19 @@ describe('polling contract: the pool view only reads hub caches', () => {
     expect(checks.match(/loadQuota\(/g)).toHaveLength(1);
     expect(checks).toMatch(/const handleCheckPage = useCallback\(\(\) => \{[^}]*loadQuota\(/);
     expect(checks).toContain('onClick={handleCheckPage}');
+  });
+
+  test('Codex credit overage on account-check cards writes only from an explicit save', () => {
+    const hook = readFileSync(
+      'src/features/quota/providers/codex/useCodexCreditOverage.ts',
+      'utf8'
+    );
+    expect(hook).not.toMatch(/\buseEffect\b|\bsetInterval\b|\bsetTimeout\b/);
+    expect(hook.match(/applyCodexCreditOverage\(/g)).toHaveLength(1);
+    expect(hook).toMatch(/const save = async \(\) => \{[\s\S]*applyCodexCreditOverage\(/);
+
+    const checks = readFileSync('src/features/quota/components/QuotaAccountChecks.tsx', 'utf8');
+    expect(checks).toContain('countCodexCreditOverageKeys(');
+    expect(checks).toContain('creditOverageSharedCount={');
   });
 });

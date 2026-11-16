@@ -31,6 +31,10 @@ import { useQuotaActions } from '../hooks/useQuotaActions';
 import { useQuotaBatchLoader } from '../hooks/useQuotaBatchLoader';
 import { filterEntriesBySearch, paginate, sortQuotaEntries, type QuotaFileEntry } from '../logic';
 import { QUOTA_ADAPTERS, type QuotaCardState } from '../providers';
+import {
+  codexCreditOverageKey,
+  countCodexCreditOverageKeys,
+} from '../providers/codex/creditOverage';
 import type { QuotaProviderType } from '../providers/types';
 import { nextRecoveryMs } from '../resetSchedule';
 import { readQuotaUiState, writeQuotaUiState } from '../uiState';
@@ -115,6 +119,14 @@ export function QuotaAccountChecks(props: QuotaAccountChecksProps) {
   const sortNow = sortMode === 'default' ? 0 : tick;
 
   const filteredEntries = useMemo(() => filterEntriesBySearch(entries, search), [entries, search]);
+  // Account-level credit settings span every page; count over all Codex entries in view.
+  const codexCreditOverageCounts = useMemo(
+    () =>
+      countCodexCreditOverageKeys(
+        entries.filter((entry) => entry.type === 'codex').map((entry) => entry.file)
+      ),
+    [entries]
+  );
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value);
     setPage(1);
@@ -261,6 +273,11 @@ export function QuotaAccountChecks(props: QuotaAccountChecksProps) {
               canRefresh={canUseActions && !entry.file.disabled}
               resetting={resettingQuotaName === getQuotaCacheKey(entry.file)}
               entranceDelayMs={null}
+              creditOverageSharedCount={
+                entry.type === 'codex'
+                  ? codexCreditOverageCounts.get(codexCreditOverageKey(entry.file) ?? '')
+                  : undefined
+              }
               onRefresh={() => void refreshQuota(entry.file, QUOTA_ADAPTERS[entry.type])}
               onReset={() => resetQuota(entry.file, QUOTA_ADAPTERS[entry.type])}
             />
