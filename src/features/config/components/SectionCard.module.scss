@@ -36,7 +36,8 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
-  align-items: start;
+  /* The description sits in an InfoTip, so the title is one line: centre it with its badge. */
+  align-items: center;
   padding-bottom: 4px;
 
   @include mobile {
@@ -86,7 +87,20 @@
   min-width: 0;
 }
 
+/* 保留可见说明时（keepDescriptionVisible）徽标回到顶端对齐。 */
+.headerWithDescription {
+  align-items: start;
+}
+
+/* 标题 + InfoTip：普通行内流，字号/行高与标题一致，InfoTip 不撑高这一行。 */
+.titleLine {
+  min-width: 0;
+  font-size: clamp(18px, 1.6vw, 22px);
+  line-height: 1.18;
+}
+
 .title {
+  display: inline;
   margin: 0;
   color: var(--text-primary);
   font-size: 17px;

@@ -344,20 +344,11 @@
   font-size: 14.5px;
   font-weight: 500;
   color: var(--text-primary);
-  margin-bottom: 2px;
 
   svg {
     opacity: 0.5;
     flex-shrink: 0;
   }
-}
-
-.linkDesc {
-  font-size: 13px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 @media (max-width: 768px) {
