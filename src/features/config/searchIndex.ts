@@ -225,6 +225,22 @@ export const CONFIG_FIELD_SEARCH_INDEX: ConfigFieldSearchEntry[] = [
 
   // ── connectivity ──────────────────────────────────────────────────────────
   {
+    fieldId: 'serverId',
+    sectionId: 'connectivity',
+    labelKey: L('serverExtras.serverId.label'),
+    hintKey: L('serverExtras.serverId.hint'),
+    yamlKeys: ['server', 'server-id'],
+    keywords: ['UUID'],
+  },
+  {
+    fieldId: 'oauthErrorRules',
+    sectionId: 'advanced',
+    labelKey: L('additions.oauthErrorRules.label'),
+    hintKey: L('additions.oauthErrorRules.hint'),
+    yamlKeys: ['oauth', 'request-scoped-errors'],
+    keywords: ['Copilot', 'match-regexr'],
+  },
+  {
     fieldId: 'githubToken',
     sectionId: 'connectivity',
     labelKey: L('sections.server.github_token'),
@@ -728,7 +744,19 @@ export const CONFIG_FIELD_SEARCH_INDEX: ConfigFieldSearchEntry[] = [
     yamlKeys: ['requests', 'payload', 'replace'],
     sectionId: 'payload',
     labelKey: L('payload_replace.title'),
-    keywords: ['payload', 'rule', 'replace', 'replacements', 'user', 'positions', 'literal'],
+    keywords: [
+      'payload',
+      'rule',
+      'replace',
+      'replacements',
+      'user',
+      'system',
+      'developer',
+      'paths',
+      'positions',
+      'literal',
+      'regex',
+    ],
   },
   {
     fieldId: 'payloadFilterRules',

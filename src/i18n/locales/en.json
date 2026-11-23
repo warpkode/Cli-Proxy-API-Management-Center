@@ -347,6 +347,7 @@
     "filter_aistudio": "AIStudio",
     "filter_claude": "Claude",
     "filter_codex": "Codex",
+    "filter_copilot": "GitHub Copilot",
     "filter_meta": "Muse (Meta)",
     "filter_devin": "Devin",
     "filter_antigravity": "Antigravity",
@@ -625,6 +626,17 @@
     "empty_title": "No Devin credentials",
     "empty_desc": "Upload a Devin credential file or sign in using the backend CLI to query quota."
   },
+  "copilot_quota": {
+    "title": "GitHub Copilot Quota",
+    "empty_title": "No GitHub Copilot credentials",
+    "empty_desc": "Sign in with GitHub Copilot OAuth or upload a GitHub Copilot credential file to query quota.",
+    "idle": "Click to query GitHub Copilot quota",
+    "loading": "Querying GitHub Copilot quota…",
+    "load_failed": "Failed to query quota: {{message}}",
+    "remaining": "{{percent}}% remaining",
+    "premium": "Premium interactions",
+    "unavailable": "Quota unavailable. Check the Copilot credential and try again."
+  },
   "meta_quota": {
     "title": "Muse (Meta) Quota",
     "empty_title": "No Muse credentials",
@@ -890,6 +902,15 @@
     "antigravity_oauth_status_error": "Authentication failed:",
     "antigravity_oauth_start_error": "Failed to start Antigravity OAuth:",
     "antigravity_oauth_polling_error": "Failed to check authentication status:",
+    "copilot_oauth_title": "GitHub Copilot OAuth",
+    "copilot_oauth_button": "Log in with GitHub Copilot",
+    "copilot_open_link": "Open Link",
+    "copilot_copy_link": "Copy Link",
+    "copilot_oauth_status_waiting": "Waiting for authentication...",
+    "copilot_oauth_status_success": "Authentication successful!",
+    "copilot_oauth_status_error": "Authentication failed:",
+    "copilot_oauth_start_error": "Failed to start GitHub Copilot OAuth:",
+    "copilot_oauth_polling_error": "Failed to check authentication status:",
     "meta_oauth_title": "Muse (Meta) OAuth",
     "meta_oauth_button": "Log in with Muse",
     "meta_open_link": "Open Link",
@@ -1151,6 +1172,10 @@
     },
     "visual": {
       "serverExtras": {
+        "serverId": {
+          "label": "Deployment ID",
+          "hint": "Stable UUID for this deployment. Saving an empty value generates a new ID."
+        },
         "trustedProxies": {
           "label": "Trusted proxies",
           "hint": "IP addresses or CIDRs; empty means forwarded headers are not trusted. Trusting all-address ranges risks client IP spoofing. Requires a backend restart."
@@ -1190,6 +1215,11 @@
         "discoveryHint": "Requires multicast-capable physical interfaces and a non-loopback listener. Docker usually needs host networking; reachability is not guaranteed."
       },
       "additions": {
+        "oauthErrorRules": {
+          "label": "OAuth request error rules",
+          "hint": "Match upstream errors in order for each OAuth channel to control credential failover and cooldown.",
+          "channel": "OAuth channel (or enter a plugin channel)"
+        },
         "oauthTitle": "OAuth provider behavior",
         "oauthHint": "These provider settings apply only to OAuth/file-backed credentials, not API-key credentials.",
         "claudeTitle": "Claude",
@@ -1273,7 +1303,7 @@
         },
         "antigravityConnectionPoolMaxIdleConnsPerHost": {
           "label": "Maximum idle connections per host",
-          "hint": "Maximum idle connections retained per upstream host per credential. Default: 2; capped at 100. Zero uses Go's default of 2; a negative value switches to short-lived connections."
+          "hint": "Maximum idle connections per upstream host per credential. Leave blank for the default of 2. The limit is 100. Zero or a negative value uses short-lived connections."
         },
         "xaiInjectXSearch": {
           "label": "Inject x_search",
@@ -1550,6 +1580,8 @@
         "boolean_false": "false"
       },
       "validation": {
+        "invalid_server_id": "Enter a nonzero UUID with hyphens.",
+        "invalid_oauth_error_rules": "Check the status, matches and action for {{channel}}.",
         "invalid_trusted_proxies": "Each trusted proxy must be a valid IP address or CIDR.",
         "invalid_discovery_service_type": "Use _name._tcp: name must be 1–15 letters, digits or hyphens, with no leading or trailing hyphen.",
         "validation_blocked": "Fix validation errors before saving",
@@ -1568,10 +1600,11 @@
         "payload_invalid_number": "Enter a valid number",
         "payload_invalid_boolean": "Choose true or false",
         "payload_invalid_json": "Enter valid JSON",
-        "payload_replace_invalid_target": "Only user messages are supported: target.role must be user.",
-        "payload_replace_invalid_positions": "Choose all user messages or a non-empty list of positive integer positions, not both.",
+        "payload_replace_invalid_target": "Use user, system, or developer as the target role.",
+        "payload_replace_invalid_positions": "Choose all messages of the selected role or enter a non-empty list of positive integer positions, not both.",
+        "payload_replace_invalid_paths": "Enter at least one non-blank JSON path. Paths cannot be combined with a role, all, or positions.",
         "payload_replace_invalid_models": "Add at least one model with a non-empty name and valid conditions.",
-        "payload_replace_invalid_replacements": "Add at least one replacement. Each entry must contain exactly one string-to-string mapping with a non-empty source; an empty replacement deletes the source text."
+        "payload_replace_invalid_replacements": "Add at least one valid replacement. Literal sources cannot be empty. Regex uses Go RE2; an empty replacement deletes the matched text."
       },
       "common": {
         "edit": "Edit",
@@ -1581,20 +1614,28 @@
         "add": "Add"
       },
       "payload_replace": {
-        "title": "User text replacements",
-        "description": "Applied after overrides and before filters. Literal replacements run in listed order on existing user text.",
+        "title": "Payload text replacements",
+        "description": "Runs after overrides and before filters. Replacements run in order on existing strings.",
         "target": "Scope",
         "replacements": "Replacements",
-        "target_all": "All user messages",
-        "target_positions": "User message positions",
-        "target_hint": "One-based positions in the final upstream body, including user messages without editable text. Choose all messages or comma-separated positions.",
+        "target_all": "All messages of this role",
+        "target_positions": "Message positions",
+        "target_hint": "Positions start at 1 and count all messages of the selected role in the final upstream payload, including messages without editable text. Separate positions with commas.",
         "from": "Source text",
         "to": "Replacement text (empty deletes)",
         "add_replacement": "Add replacement",
         "move_up": "Move up",
         "move_down": "Move down",
         "reset_invalid": "Reset invalid rule",
-        "invalid_hint": "This rule contains unsupported or malformed values. Fix it in YAML or reset it before editing."
+        "invalid_hint": "This rule contains unsupported or malformed values. Fix it in YAML or reset it before editing.",
+        "target_selector": "Target type",
+        "target_paths": "JSON paths",
+        "paths_hint": "Paths are relative to the upstream payload root. Missing or non-string values are skipped.",
+        "from_or_pattern": "Source text or pattern",
+        "replacement_type": "Replacement type",
+        "literal": "Literal",
+        "regex": "Regex (RE2)",
+        "pattern": "RE2 pattern"
       }
     }
   },
@@ -2187,6 +2228,43 @@
     "version": "Management UI Version"
   },
   "providersPage": {
+    "connections": {
+      "edit": "Edit connection",
+      "create": "Add connection",
+      "search": "Search by connection, key, URL or prefix…",
+      "keyCount_one": "{{count}} key",
+      "keyCount_other": "{{count}} keys",
+      "keysActive_one": "{{active}}/{{count}} key enabled",
+      "keysActive_other": "{{active}}/{{count}} keys enabled",
+      "disableKeys": "Disable all keys in “{{name}}”",
+      "enableKeys": "Enable all keys in “{{name}}”"
+    },
+    "nativeGroup": {
+      "defaults": "Connection defaults",
+      "description": "Keys inherit these settings unless they provide their own override. The base URL applies to every key.",
+      "name": "Connection name",
+      "headersJson": "Request headers (JSON object)",
+      "excluded": "Excluded models (one per line)",
+      "pool": "Connection pool",
+      "configurePool": "Configure connection pool",
+      "poolHint": "Adding a pool enables connection reuse by default. Connections are kept separately for each key. A timeout or limit of zero or less disables reuse.",
+      "poolEnabled": "Reuse connections",
+      "poolAuto": "Default (enabled)",
+      "poolTimeout": "Idle connection timeout",
+      "poolLimit": "Maximum idle connections per host",
+      "invalidLimit": "Maximum idle connections must be a safe integer.",
+      "modelNameRequired": "Enter an upstream name for each model.",
+      "disabled": "Disable this key group"
+    },
+    "groupActions": {
+      "search": "Search connections, keys, URLs, prefixes…",
+      "create": "Create connection",
+      "edit": "Edit connection",
+      "delete": "Delete connection",
+      "append": "Add key",
+      "confirm": "Delete connection “{{name}}” and all its keys ({{count}})?",
+      "settings": "Connection settings"
+    },
     "behavior": {
       "title": "Provider-specific behavior",
       "alphaSearch": "Enable Alpha Search",
@@ -2227,6 +2305,22 @@
       "removeModel": "Remove model",
       "modelName": "Model name",
       "modelAlias": "Alias (optional)"
+    },
+    "nativeKey": {
+      "routing": "Protocol settings",
+      "nativeToolSearch": "Trust custom endpoint for Anthropic native tool search",
+      "interactions": "Use Vertex Interactions API",
+      "openapi": "Use Vertex OpenAPI endpoint",
+      "location": "OpenAPI location",
+      "pool": "Connection pool",
+      "poolHint": "A custom block enables pooling unless disabled here or by the group. Blank fields inherit. A non-positive timeout or limit disables reuse.",
+      "reuse": "Reuse upstream connections",
+      "timeout": "Idle timeout (e.g. 5m)",
+      "maxIdle": "Maximum idle connections per host",
+      "invalidMaxIdle": "Maximum idle connections must be a safe integer.",
+      "inheritHint": "Only fill in what this key does differently; blank fields inherit the connection settings.",
+      "disableKey": "Disable this key",
+      "disableShort": "Off"
     },
     "runtimePolicy": {
       "title": "Advanced runtime policy",
@@ -2288,7 +2382,9 @@
       "save": "Save",
       "create": "Create",
       "enable": "Enable",
-      "disable": "Disable"
+      "disable": "Disable",
+      "newFor": "New {{provider}}",
+      "addProvider": "Add provider"
     },
     "categories": {
       "title": "Providers",
@@ -2311,12 +2407,6 @@
       "kimi": "Kimi"
     },
     "table": {
-      "key": "Key",
-      "baseUrl": "Base URL",
-      "prefix": "Prefix",
-      "models": "Models/Headers",
-      "status": "Status",
-      "actions": "Actions",
       "metrics": {
         "models": "Models",
         "keys": "Keys",
@@ -2325,8 +2415,9 @@
       "websocketsTag": "WebSockets",
       "cloakTag": "Cloak",
       "cliProfileTag": "CLI Profile",
-      "empty": "No resources yet, click \"New\" to add.",
-      "filterPlaceholder": "Search keys, URLs, prefixes…"
+      "filterPlaceholder": "Search keys, URLs, prefixes…",
+      "emptyBrand": "No {{provider}} configuration yet",
+      "noMatch": "No resources match the current filters"
     },
     "sponsor": {
       "protocolSummary": "Anthropic / OpenAI / Gemini / Codex API (Responses)",
@@ -2496,7 +2587,15 @@
         "baseUrlRequired": "Base URL is required",
         "weightInteger": "Scheduling weight must be an integer",
         "weightMax": "Scheduling weight cannot exceed {{max}}"
-      }
+      },
+      "sections": {
+        "connection": "Connection",
+        "connectivity": "Connectivity test",
+        "routing": "Routing",
+        "advanced": "Advanced"
+      },
+      "headerName": "Header name",
+      "headerValue": "Header value"
     },
     "delete": {
       "title": "Delete resource",
@@ -2558,10 +2657,26 @@
         "selectAll": "Select all",
         "clear": "Clear",
         "empty": "No models configured yet"
-      }
+      },
+      "clearFilters": "Clear filters"
     },
     "modelCatalog": {
       "notLoaded": "Not loaded"
+    },
+    "card": {
+      "requests": "Requests"
+    },
+    "picker": {
+      "featured": "Quick connect",
+      "featuredBadge": "Recommended",
+      "oneKey": "One key for {{count}} protocols",
+      "official": "Official APIs",
+      "custom": "Custom",
+      "connect": "Connect",
+      "connected": "{{count}} connected",
+      "offer": "Offer",
+      "onboardingTitle": "Connect your first AI provider",
+      "moreQuickConnect": "More quick-connect partners"
     }
   },
   "claude_reset": {
